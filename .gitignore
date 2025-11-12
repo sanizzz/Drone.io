@@ -1,1 +1,56 @@
-.venv
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Modal
+.modal/
+
+# Test audio files
+*.wav
+*.mp3
+*.flac
+*.ogg
+!sample.wav
+
+# Models and data
+*.pth
+*.pt
+*.ckpt
+models/
+data/
+tensorboard_logs/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Node modules (frontend)
+node_modules/
