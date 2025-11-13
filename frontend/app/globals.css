@@ -1,42 +1,44 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "mapbox-gl/dist/mapbox-gl.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
   --background: #000000;
   --foreground: #ffffff;
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #ffc700;
-  --primary-foreground: #ffffff;
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --card: #000000;
+  --card-foreground: #ffffff;
+  --popover: #000000;
+  --popover-foreground: #ffffff;
+  --primary: #FFC700;
+  --primary-foreground: #000000;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ffffff;
+  --muted: #1a1a1a;
+  --muted-foreground: #a1a1a1;
+  --accent: #FFC700;
+  --accent-foreground: #000000;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
   --border: #424242;
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --input: #1a1a1a;
+  --ring: #FFC700;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #FFC700;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #424242;
+  --sidebar-ring: #FFC700;
+  --shadow-glow: 0 0 8px 2px;
 }
 
 .dark {
@@ -74,7 +76,6 @@
   --sidebar-ring: oklch(0.439 0 0);
 }
 
-@import "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 
 @font-face {
   font-family: "Sentient";
@@ -93,7 +94,8 @@
 }
 
 @theme inline {
-  /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
+  --font-sentient: "Sentient", serif;
+  --font-geist-mono: var(--font-geist-mono);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -157,18 +159,25 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-mono), monospace;
 }
 
-#webgl {
-  top: 0;
-  left: 0;
-  position: fixed;
-  height: 100svh;
-  width: 100%;
+@utility glow {
+  box-shadow: var(--shadow-glow) var(--primary);
 }
 
-#webgl canvas {
+@utility split {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: calc(100vh - 4rem);
+  
+  @media (width >= 768px) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+#map-container {
   width: 100%;
   height: 100%;
+  border-radius: 0;
 }
