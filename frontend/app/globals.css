@@ -172,7 +172,7 @@ body {
   min-height: calc(100vh - 4rem);
   
   @media (width >= 768px) {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 35% 65%;
   }
 }
 
@@ -181,3 +181,36 @@ body {
   height: 100%;
   border-radius: 0;
 }
+
+.mapboxgl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Range Label Styles */
+.range-label {
+  pointer-events: auto;
+  user-select: none;
+  z-index: 1000;
+}
+
+.range-marker-container {
+  pointer-events: auto;
+}
+
+/* Optional: Pulsing glow animation for range endpoints */
+@keyframes range-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.range-endpoint-pulse {
+  animation: range-pulse 2s ease-in-out infinite;
+}
+
