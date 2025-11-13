@@ -1,0 +1,23 @@
+# Core ML/Audio Libraries
+torch
+torchaudio
+numpy
+pandas
+
+# Modal (for serverless deployment)
+modal
+
+# FastAPI & API utilities
+fastapi
+pydantic
+python-multipart
+
+# Audio processing
+librosa
+soundfile
+
+# Utilities
+requests
+tqdm
+tensorboard
+
