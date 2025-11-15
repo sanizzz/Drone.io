@@ -22,16 +22,16 @@ image = (modal.Image.debian_slim()
          .pip_install_from_requirements("requirements.txt")
          .apt_install(["wget", "unzip", "ffmpeg", "libsndfile1"])
          .run_commands([
-             "cd /tmp && wget https://github.com/karolpiczak/ESC-50/archive/master.zip -O esc50.zip",
-             "cd /tmp && unzip esc50.zip",
-             "mkdir -p /opt/esc50-data",
-             "cp -r /tmp/ESC-50-master/* /opt/esc50-data/",
-             "rm -rf /tmp/esc50.zip /tmp/ESC-50-master"
+             "cd /tmp && wget https://github.com/sanizzz/drone-audio-dataset/archive/main.zip -O drone-data.zip",
+             "cd /tmp && unzip drone-data.zip",
+             "mkdir -p /opt/drone-data",
+             "cp -r /tmp/drone-audio-dataset-main/* /opt/drone-data/",
+             "rm -rf /tmp/drone-data.zip /tmp/drone-audio-dataset-main"
          ])
          .add_local_python_source("model"))
 
-volume = modal.Volume.from_name("esc50-data", create_if_missing=True)
-model_volume = modal.Volume.from_name("esc-model", create_if_missing=True)
+volume = modal.Volume.from_name("drone-data", create_if_missing=True)
+model_volume = modal.Volume.from_name("drone-model", create_if_missing=True)
 
 
 class ESC50Dataset(Dataset):
@@ -94,7 +94,7 @@ def train():
     log_dir = f'/models/tensorboard_logs/run_{timestamp}'
     writer = SummaryWriter(log_dir)
 
-    esc50_dir = Path("/opt/esc50-data")
+    drone_dir = Path("/opt/drone-data")
 
     train_transform = nn.Sequential(
         T.MelSpectrogram(
@@ -123,22 +123,22 @@ def train():
     )
 
     train_dataset = ESC50Dataset(
-        data_dir=esc50_dir, metadata_file=esc50_dir / "meta" / "esc50.csv", split="train", transform=train_transform)
+        data_dir=drone_dir, metadata_file=drone_dir / "meta" / "drone_metadata.csv", split="train", transform=train_transform)
 
     val_dataset = ESC50Dataset(
-        data_dir=esc50_dir, metadata_file=esc50_dir / "meta" / "esc50.csv", split="test", transform=val_transform)
+        data_dir=drone_dir, metadata_file=drone_dir / "meta" / "drone_metadata.csv", split="test", transform=val_transform)
 
     print(f"Training samples: {len(train_dataset)}")
     print(f"Val samples: {len(val_dataset)}")
 
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    test_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+    test_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = AudioCNN(num_classes=len(train_dataset.classes))
     model.to(device)
 
-    num_epochs = 100
+    num_epochs = 50
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = optim.AdamW(model.parameters(), lr=0.0005, weight_decay=0.01)
 
