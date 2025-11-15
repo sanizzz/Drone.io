@@ -14,6 +14,7 @@ import { Activity, TrendingUp, Radio, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
+import { drones } from "@/data/drones"
 
 interface PredictionLog {
   id: string
@@ -72,10 +73,43 @@ export function LeftSlider({
     if (result.isDrone) {
       const topPrediction = result.predictions?.[0]
       const confidencePercent = Math.round((result.confidence || 0) * 100)
-      
+
+      // try a few candidate keys to find matching entry in drones.ts
+      const candidates = [
+        topPrediction?.class,
+        topPrediction?.class?.replace(/\s+/g, "_"),
+        topPrediction?.class?.replace(/-/g, "_"),
+        topPrediction?.class?.toLowerCase?.(),
+      ]
+
+      let droneInfo = null
+      for (const c of candidates) {
+        if (c && (drones as any)[c]) {
+          droneInfo = (drones as any)[c]
+          break
+        }
+      }
+
+      const description = droneInfo ? (
+        <div className="text-sm space-y-0.5">
+          <div className="font-semibold">{droneInfo.modelName}</div>
+          <div className="text-[12px] text-muted-foreground">Confidence: {confidencePercent}%</div>
+          <div className="text-[12px]">Top speed: <strong>{droneInfo.maximumSpeed} km/h</strong></div>
+          <div className="text-[12px]">Range: <strong>{droneInfo.operationalRange} km</strong></div>
+          <div className="text-[12px]">Max altitude: <strong>{droneInfo.maximumAltitude} m</strong></div>
+          <div className="text-[12px]">Endurance: <strong>{droneInfo.endurance} min</strong></div>
+          <div className="text-[12px]">Payload: <strong>{droneInfo.payloadCapacity} kg</strong></div>
+          <div className="text-[12px] text-muted-foreground">Detection marked on map.</div>
+        </div>
+      ) : (
+        <div className="text-sm">
+          {topPrediction?.class.replace(/_/g, " ")} detected with {confidencePercent}% confidence. Detection marked on map.
+        </div>
+      )
+
       toast({
         title: "🚨 Drone Detected!",
-        description: `${topPrediction?.class.replace(/_/g, " ")} detected with ${confidencePercent}% confidence. Detection marked on map.`,
+        description,
         duration: 5000,
       })
     }

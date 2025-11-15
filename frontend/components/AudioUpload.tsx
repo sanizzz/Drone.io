@@ -54,9 +54,16 @@ export function AudioUpload({ onDroneDetected, onUploadComplete, disabled }: Aud
 
         // Generate random mock predictions
         const mockClasses = [
-          { class: "commercial_drone", drone: true },
-          { class: "helicopter", drone: true },
-          { class: "racing_drone", drone: true },
+          { class: "drone_A", drone: true },
+          { class: "drone_B", drone: true },
+          { class: "drone_C", drone: true },
+          { class: "drone_D", drone: true },
+          { class: "drone_E", drone: true },
+          { class: "drone_F", drone: true },
+          { class: "drone_G", drone: true },
+          { class: "drone_H", drone: true },
+          { class: "drone_I", drone: true },
+          { class: "drone_J", drone: true },
           { class: "bird", drone: false },
           { class: "airplane", drone: false },
           { class: "car_engine", drone: false },
