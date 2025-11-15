@@ -52,9 +52,10 @@ export default function Home() {
     lat: number,
     label?: string,
     confidence?: number,
-    isDrone?: boolean
+    isDrone?: boolean,
+    radiusMeters?: number
   ) => {
-    console.log("Adding detection at:", { lng, lat, label, confidence })
+    console.log("Adding detection at:", { lng, lat, label, confidence, radiusMeters })
     
     if (!mapRef.current) {
       console.error("Map ref not available")
@@ -76,7 +77,7 @@ export default function Home() {
     const detectionId = mapRef.current.addDetection({
       lng,
       lat,
-      radiusMeters: 100,
+      radiusMeters: radiusMeters || 50, // Use smaller default radius
       label,
       confidence,
     })

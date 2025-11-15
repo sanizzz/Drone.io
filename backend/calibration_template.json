@@ -1,0 +1,56 @@
+{
+  "alpha": 0.01,
+  "drone_classes": {
+    "drone_A": {
+      "reference_spl": 70,
+      "reference_distance": 10,
+      "bpf_range": [80, 150]
+    },
+    "drone_B": {
+      "reference_spl": 72,
+      "reference_distance": 10,
+      "bpf_range": [90, 160]
+    },
+    "drone_C": {
+      "reference_spl": 68,
+      "reference_distance": 10,
+      "bpf_range": [75, 140]
+    },
+    "drone_D": {
+      "reference_spl": 65,
+      "reference_distance": 10,
+      "bpf_range": [85, 155]
+    },
+    "drone_E": {
+      "reference_spl": 73,
+      "reference_distance": 10,
+      "bpf_range": [70, 130]
+    },
+    "drone_F": {
+      "reference_spl": 69,
+      "reference_distance": 10,
+      "bpf_range": [80, 145]
+    },
+    "drone_G": {
+      "reference_spl": 75,
+      "reference_distance": 10,
+      "bpf_range": [60, 120]
+    },
+    "drone_H": {
+      "reference_spl": 71,
+      "reference_distance": 10,
+      "bpf_range": [100, 180]
+    },
+    "drone_I": {
+      "reference_spl": 67,
+      "reference_distance": 10,
+      "bpf_range": [70, 135]
+    },
+    "drone_J": {
+      "reference_spl": 74,
+      "reference_distance": 10,
+      "bpf_range": [75, 145]
+    }
+  }
+}
+

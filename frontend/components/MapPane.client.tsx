@@ -165,12 +165,12 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
     flyToUser: () => {
       if (!mapRef.current || !userLocation) return
 
-      // Use easeTo for smoother transitions
+      // Use easeTo for smoother transitions - maintain 2D view
       mapRef.current.easeTo({
         center: [userLocation.lng, userLocation.lat],
         zoom: 16,
-        pitch: isPerformanceMode ? 0 : 65,
-        bearing: isPerformanceMode ? 0 : -20,
+        pitch: 0, // Keep 2D top-down view
+        bearing: 0, // Keep north-up orientation
         duration: 1500,
       })
     },
@@ -215,8 +215,8 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       style: "mapbox://styles/mapbox/standard",
       center: [0, 0], // Neutral fallback - will be replaced by actual location
       zoom: 2,
-      pitch: isPerformanceMode ? 0 : 65,
-      bearing: isPerformanceMode ? 0 : -20,
+      pitch: 0, // Default 2D top-down view
+      bearing: 0, // North-up orientation
       projection: isPerformanceMode ? "mercator" : ("globe" as any),
       antialias: !isPerformanceMode,
       cooperativeGestures: isPerformanceMode,
@@ -255,6 +255,12 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         const wave = document.createElement("div")
         wave.className = "user-radar-wave"
         wave.style.position = "absolute"
+        wave.style.width = "120px"
+        wave.style.height = "120px"
+        wave.style.left = "50%"
+        wave.style.top = "50%"
+        wave.style.marginLeft = "-60px"
+        wave.style.marginTop = "-60px"
         container.appendChild(wave)
       }
       
@@ -464,11 +470,13 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       // Update custom radar marker
       updateUserMarker(lng, lat, accuracy)
       
-      // Fly to user's actual location
+      // Fly to user's actual location - maintain 2D view
       if (mapRef.current) {
         mapRef.current.flyTo({
           center: [lng, lat],
           zoom: 14,
+          pitch: 0, // Keep 2D top-down view
+          bearing: 0, // Keep north-up orientation
           duration: 2000
         })
       }
@@ -562,29 +570,12 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
 
       // Wait for map to be fully idle before triggering geolocation
       mapRef.current.once("idle", () => {
-        console.log("🎯 Map loaded - requesting your location...")
-        console.log("💡 Please allow location access when prompted by your browser")
-        
-        // Immediate trigger
-        if (geolocateControlRef.current) {
-          geolocateControlRef.current.trigger()
-        }
-        
-        // Retry after 1 second if location not granted
+        // Use shorter delay for faster response
         setTimeout(() => {
-          if (!userLocation && geolocateControlRef.current) {
-            console.log("🔄 Retrying location request...")
+          if (geolocateControlRef.current) {
             geolocateControlRef.current.trigger()
           }
-        }, 1000)
-        
-        // Final retry after 3 seconds
-        setTimeout(() => {
-          if (!userLocation && geolocateControlRef.current) {
-            console.log("🔄 Final location request attempt...")
-            geolocateControlRef.current.trigger()
-          }
-        }, 3000)
+        }, 200)
       })
     })
 

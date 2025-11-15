@@ -10,7 +10,7 @@ import torchaudio
 import torch.nn as nn
 import torchaudio.transforms as T
 import torch.optim as optim
-# Removed OneCycleLR import - using CosineAnnealingWarmRestarts instead
+from torch.optim.lr_scheduler import OneCycleLR
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
@@ -18,7 +18,6 @@ from model import AudioCNN
 
 app = modal.App("audio-cnn")
 
-# Build container image with drone dataset
 image = (modal.Image.debian_slim()
          .pip_install_from_requirements("requirements.txt")
          .apt_install(["wget", "unzip", "ffmpeg", "libsndfile1"])
@@ -35,33 +34,39 @@ volume = modal.Volume.from_name("drone-data", create_if_missing=True)
 model_volume = modal.Volume.from_name("drone-model", create_if_missing=True)
 
 
-class DroneAudioDataset(Dataset):
-    """Dataset for multi-class drone classification (drone_A, drone_B, ..., drone_J)"""
-    def __init__(self, data_dir, metadata_file, split="train", transform=None):
+class ESC50Dataset(Dataset):
+    def __init__(self, data_dir, metadata_file, split="train", transform=None, classes=None):
         super().__init__()
         self.data_dir = Path(data_dir)
-        full_metadata = pd.read_csv(metadata_file)
+        self.metadata = pd.read_csv(metadata_file)
         self.split = split
         self.transform = transform
 
-        # CRITICAL FIX: Compute classes from FULL dataset before splitting
-        # This ensures train and test use the same class indices
-        self.classes = sorted(full_metadata['category'].unique())
-        self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
-        
-        # Now filter by split
-        if split == 'train':
-            self.metadata = full_metadata[full_metadata['fold'] != 5].copy()
+        # Use provided classes or compute from ALL data (not just this split)
+        if classes is not None:
+            self.classes = classes
         else:
-            self.metadata = full_metadata[full_metadata['fold'] == 5].copy()
+            # Compute classes from FULL dataset before splitting
+            self.classes = sorted(self.metadata['category'].unique())
 
-        # Map categories to consistent label indices
+        if split == 'train':
+            self.metadata = self.metadata[self.metadata['fold'] != 5]
+        else:
+            self.metadata = self.metadata[self.metadata['fold'] == 5]
+
+        self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
         self.metadata['label'] = self.metadata['category'].map(self.class_to_idx)
         
-        # Validate: Check for NaN labels (unmapped categories)
-        if self.metadata['label'].isna().any():
-            invalid_cats = self.metadata[self.metadata['label'].isna()]['category'].unique()
-            raise ValueError(f"Found unmapped categories in {split} set: {invalid_cats}")
+        # Validate labels - remove any NaN or invalid labels
+        invalid_mask = self.metadata['label'].isna()
+        if invalid_mask.any():
+            print(f"WARNING: Removing {invalid_mask.sum()} samples with invalid labels")
+            self.metadata = self.metadata[~invalid_mask]
+        
+        # Ensure all labels are in valid range [0, num_classes-1]
+        self.metadata['label'] = self.metadata['label'].astype(int)
+        print(f"✓ Classes: {self.classes}")
+        print(f"✓ Label range: [{self.metadata['label'].min()}, {self.metadata['label'].max()}]")
 
     def __len__(self):
         return len(self.metadata)
@@ -69,36 +74,25 @@ class DroneAudioDataset(Dataset):
     def __getitem__(self, idx):
         row = self.metadata.iloc[idx]
         audio_path = self.data_dir / "audio" / row['filename']
-        
-        # Get and validate label
-        label = int(row['label'])
-        if label < 0 or label >= len(self.classes):
-            raise ValueError(
-                f"Invalid label {label} for class '{row['category']}'. "
-                f"Expected range [0, {len(self.classes)-1}]"
-            )
 
         waveform, sample_rate = torchaudio.load(audio_path, backend="soundfile")
 
-        # Convert to mono if stereo
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
 
-        # Fixed-length audio preprocessing for consistent batch shapes
-        # 5 seconds at 22050 Hz = 110,250 samples (industry standard)
+        # Fixed-length audio preprocessing (5 seconds at 22050 Hz)
         target_length = 110250
         current_length = waveform.shape[1]
         
         if current_length > target_length:
-            # Crop: Take center portion to preserve main content
+            # Crop: Take center portion
             start_idx = (current_length - target_length) // 2
             waveform = waveform[:, start_idx:start_idx + target_length]
         elif current_length < target_length:
-            # Pad: Add zeros to end (standard practice in audio ML)
+            # Pad: Add zeros to end
             pad_length = target_length - current_length
             waveform = torch.nn.functional.pad(waveform, (0, pad_length), mode='constant', value=0)
 
-        # Apply mel-spectrogram transform + augmentation
         if self.transform:
             spectrogram = self.transform(waveform)
         else:
@@ -110,6 +104,9 @@ class DroneAudioDataset(Dataset):
         # Normalize to reasonable range
         spectrogram = torch.clamp(spectrogram, min=-80.0, max=0.0)
 
+        # Ensure label is a valid integer
+        label = int(row['label'])
+        
         return spectrogram, label
 
 
@@ -128,7 +125,7 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
-@app.function(image=image, gpu="A10G", volumes={"/models": model_volume}, timeout=60 * 60 * 3)
+@app.function(image=image, gpu="A10G", volumes={"/data": volume, "/models": model_volume}, timeout=60 * 60 * 3)
 def train():
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -137,74 +134,61 @@ def train():
 
     drone_dir = Path("/opt/drone-data")
 
-
-    # OPTIMIZED FOR DRONE SOUNDS: Focus on high-frequency propeller signatures
     train_transform = nn.Sequential(
         T.MelSpectrogram(
             sample_rate=22050,
-            n_fft=2048,  # Increased for better frequency resolution
-            hop_length=256,  # Smaller hop for better time resolution
-            n_mels=256,  # More mel bands to capture subtle differences
-            f_min=80,  # Start at typical drone BPF (Blade Pass Frequency)
-            f_max=8000  # Focus on propeller harmonics range
+            n_fft=1024,
+            hop_length=512,
+            n_mels=128,
+            f_min=0,
+            f_max=11025
         ),
         T.AmplitudeToDB(),
-        T.FrequencyMasking(freq_mask_param=15),  # Reduced - less aggressive
-        T.TimeMasking(time_mask_param=40)  # Reduced - preserve temporal patterns
+        T.FrequencyMasking(freq_mask_param=30),
+        T.TimeMasking(time_mask_param=80)
     )
 
     val_transform = nn.Sequential(
         T.MelSpectrogram(
             sample_rate=22050,
-            n_fft=2048,  # MUST match training!
-            hop_length=256,
-            n_mels=256,
-            f_min=80,
-            f_max=8000
+            n_fft=1024,
+            hop_length=512,
+            n_mels=128,
+            f_min=0,
+            f_max=11025
         ),
         T.AmplitudeToDB()
     )
 
-    train_dataset = DroneAudioDataset(
+    train_dataset = ESC50Dataset(
         data_dir=drone_dir, metadata_file=drone_dir / "meta" / "drone_metadata.csv", split="train", transform=train_transform)
 
-    val_dataset = DroneAudioDataset(
-        data_dir=drone_dir, metadata_file=drone_dir / "meta" / "drone_metadata.csv", split="test", transform=val_transform)
+    # Create validation dataset with SAME classes as training
+    val_dataset = ESC50Dataset(
+        data_dir=drone_dir, metadata_file=drone_dir / "meta" / "drone_metadata.csv", split="test", transform=val_transform, classes=train_dataset.classes)
 
     print(f"Training samples: {len(train_dataset)}")
     print(f"Val samples: {len(val_dataset)}")
     print(f"Number of classes: {len(train_dataset.classes)}")
     print(f"Classes: {train_dataset.classes}")
-    
-    # Validate labels are in valid range
-    train_labels = train_dataset.metadata['label'].values
-    val_labels = val_dataset.metadata['label'].values
-    print(f"Train labels range: [{train_labels.min():.0f}, {train_labels.max():.0f}]")
-    print(f"Val labels range: [{val_labels.min():.0f}, {val_labels.max():.0f}]")
 
-    # Dynamic batch size: use 16 or smaller if dataset is tiny
-    batch_size = min(16, max(4, len(train_dataset) // 4))  # At least 4 batches, min 4
-    print(f"Using batch size: {batch_size}")
-    
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+    test_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # Enhanced model with attention and dropout
-    model = AudioCNN(num_classes=len(train_dataset.classes), dropout_rate=0.5)
+    model = AudioCNN(num_classes=len(train_dataset.classes))
     model.to(device)
 
-    # OPTIMIZED FOR SMALL DATASET WITH SIMILAR SOUNDS
-    num_epochs = 100  # More epochs for subtle differences
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.2)  # More smoothing for similar classes
-    optimizer = optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.05)  # Lower LR, higher regularization
+    num_epochs = 50
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    optimizer = optim.AdamW(model.parameters(), lr=0.0005, weight_decay=0.01)
 
-    # Cosine annealing with warm restarts for better convergence
-    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+    scheduler = OneCycleLR(
         optimizer,
-        T_0=20,  # Initial restart period
-        T_mult=1,  # Period multiplier after each restart
-        eta_min=1e-6  # Minimum learning rate
+        max_lr=0.002,
+        epochs=num_epochs,
+        steps_per_epoch=len(train_dataloader),
+        pct_start=0.1
     )
 
     best_accuracy = 0.0
@@ -230,20 +214,14 @@ def train():
 
             optimizer.zero_grad()
             loss.backward()
-            
-            # Gradient clipping for stability
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
             optimizer.step()
+            scheduler.step()
 
             epoch_loss += loss.item()
             progress_bar.set_postfix({'Loss': f'{loss.item():.4f}'})
 
         avg_epoch_loss = epoch_loss / len(train_dataloader)
         writer.add_scalar('Loss/Train', avg_epoch_loss, epoch)
-        
-        # Step scheduler after epoch (for CosineAnnealingWarmRestarts)
-        scheduler.step()
         writer.add_scalar(
             'Learning_Rate', optimizer.param_groups[0]['lr'], epoch)
 

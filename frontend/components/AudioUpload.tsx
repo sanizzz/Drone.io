@@ -10,7 +10,15 @@ import { cn } from "@/lib/utils"
 
 interface AudioUploadProps {
   onDroneDetected?: (confidence: number) => void
-  onUploadComplete?: (result: { isDrone: boolean; confidence?: number; predictions?: ClassificationResult[] }) => void
+  onUploadComplete?: (result: {
+    isDrone: boolean
+    confidence?: number
+    predictions?: ClassificationResult[]
+    distance?: number | null
+    ci?: [number, number] | null
+    bpf_hz?: number | null
+    binaryConfidence?: number
+  }) => void
   disabled?: boolean
 }
 
@@ -47,106 +55,87 @@ export function AudioUpload({ onDroneDetected, onUploadComplete, disabled }: Aud
           setUploadProgress((prev) => Math.min(prev + 10, 90))
         }, 200)
 
-        // ===== MOCK DATA FOR TESTING (Comment out to use real API) =====
-        await new Promise(resolve => setTimeout(resolve, 1500)) // Simulate API delay
+        // ===== DEMO MODE: Random Realistic Predictions =====
+        console.log("🎬 Generating realistic demo predictions...")
+        
+        // Simulate upload progress
+        await new Promise(resolve => setTimeout(resolve, 800))
         clearInterval(progressInterval)
         setUploadProgress(100)
-
-        // Generate random mock predictions
-        const mockClasses = [
-          { class: "drone_A", drone: true },
-          { class: "drone_B", drone: true },
-          { class: "drone_C", drone: true },
-          { class: "drone_D", drone: true },
-          { class: "drone_E", drone: true },
-          { class: "drone_F", drone: true },
-          { class: "drone_G", drone: true },
-          { class: "drone_H", drone: true },
-          { class: "drone_I", drone: true },
-          { class: "drone_J", drone: true },
-          { class: "bird", drone: false },
-          { class: "airplane", drone: false },
-          { class: "car_engine", drone: false },
-          { class: "wind", drone: false },
-        ]
-
-        const shuffled = [...mockClasses].sort(() => Math.random() - 0.5)
-        const predictions: ClassificationResult[] = shuffled.slice(0, 3).map((item, idx) => ({
-          class: item.class,
-          confidence: Math.random() * 0.4 + (idx === 0 ? 0.5 : 0.3), // First one gets higher confidence
-        }))
-
-        const droneDetection = predictions.find((p) => 
-          p.class.toLowerCase().includes("drone") || 
-          p.class.toLowerCase().includes("helicopter")
-        )
         
-        const isDroneDetected = droneDetection !== undefined
+        // Simulate processing delay (realistic API latency)
+        await new Promise(resolve => setTimeout(resolve, 600))
+        
+        // Generate random drone class
+        const droneClasses = ['drone_A', 'drone_B', 'drone_C', 'drone_D', 'drone_E', 
+                             'drone_F', 'drone_G', 'drone_H', 'drone_I', 'drone_J']
+        const topDrone = droneClasses[Math.floor(Math.random() * droneClasses.length)]
+        
+        // Generate realistic confidence scores (top prediction is highest)
+        const topConfidence = 0.75 + Math.random() * 0.20 // 75-95%
+        const secondConfidence = 0.03 + Math.random() * 0.08 // 3-11%
+        const thirdConfidence = 0.01 + Math.random() * 0.04 // 1-5%
+        
+        // Pick 2 random other drones for second/third place
+        const otherDrones = droneClasses.filter(d => d !== topDrone)
+        const secondDrone = otherDrones[Math.floor(Math.random() * otherDrones.length)]
+        const thirdDrone = otherDrones.filter(d => d !== secondDrone)[Math.floor(Math.random() * (otherDrones.length - 1))]
+        
+        // Generate random distance (50m - 300m)
+        const distance = 50 + Math.random() * 250
+        const uncertainty = 20 + Math.random() * 40 // ±20-60m
+        const ciLow = distance - uncertainty
+        const ciHigh = distance + uncertainty
+        
+        // Generate random BPF (80-600 Hz for small multirotors)
+        const bpf = 80 + Math.random() * 520
+        
+        // Hardcoded drone detection response with RANDOM values
+        const data = {
+          is_drone: true,
+          binary_confidence: 0.92 + Math.random() * 0.07, // 92-99%
+          predictions: [
+            { class: topDrone, confidence: topConfidence },
+            { class: secondDrone, confidence: secondConfidence },
+            { class: thirdDrone, confidence: thirdConfidence }
+          ],
+          distance_m: Math.round(distance * 10) / 10,
+          ci: [Math.round(ciLow * 10) / 10, Math.round(ciHigh * 10) / 10],
+          confidence_distance: 0.75 + Math.random() * 0.20, // 75-95%
+          bpf_hz: Math.round(bpf * 10) / 10
+        }
+        
+        console.log("📥 Demo Response:", data)
+        
+        const isDroneDetected = data.is_drone
+        const predictions: ClassificationResult[] = data.predictions || []
+        
+        console.log("✅ Parsed data:", {
+          isDrone: isDroneDetected,
+          predictions: predictions,
+          distance: data.distance_m,
+          confidence: data.binary_confidence
+        })
         
         setResult({
           predictions,
           isDrone: isDroneDetected,
         })
 
-        const confidence = droneDetection?.confidence
+        // Trigger upload complete callback with full response data
+        const confidence = predictions.length > 0 ? predictions[0].confidence : data.binary_confidence
         setTimeout(() => {
           onUploadComplete?.({
             isDrone: isDroneDetected,
             confidence,
             predictions,
+            distance: data.distance_m,
+            ci: data.ci,
+            bpf_hz: data.bpf_hz,
+            binaryConfidence: data.binary_confidence
           })
         }, 500)
-        // ===== END MOCK DATA =====
-
-        // ===== REAL API CALL (Uncomment when backend is ready) =====
-        // const formData = new FormData()
-        // formData.append("file", file)
-
-        // const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL
-        // if (!backendUrl) {
-        //   throw new Error("Backend API URL not configured")
-        // }
-
-        // const response = await fetch(`${backendUrl}/inference`, {
-        //   method: "POST",
-        //   body: formData,
-        // })
-
-        // clearInterval(progressInterval)
-        // setUploadProgress(100)
-
-        // if (!response.ok) {
-        //   throw new Error(`API error: ${response.status}`)
-        // }
-
-        // const data = await response.json()
-        
-        // // Backend returns top 3 predictions with actual confidence scores
-        // const predictions: ClassificationResult[] = data.predictions || []
-        
-        // // Check if drone or helicopter is detected in the predictions
-        // const droneDetection = predictions.find((p) => 
-        //   p.class.toLowerCase().includes("drone") || 
-        //   p.class.toLowerCase().includes("helicopter")
-        // )
-        
-        // const isDroneDetected = droneDetection !== undefined
-        
-        // setResult({
-        //   predictions,
-        //   isDrone: isDroneDetected,
-        // })
-
-        // // Trigger upload complete callback to create ONE marker
-        // const confidence = droneDetection?.confidence
-        // setTimeout(() => {
-        //   onUploadComplete?.({
-        //     isDrone: isDroneDetected,
-        //     confidence,
-        //     predictions,
-        //   })
-        // }, 500)
-        // ===== END REAL API CALL =====
+        // ===== END DEMO MODE =====
       } catch (err) {
         console.error("Upload error:", err)
         setError(err instanceof Error ? err.message : "Upload failed")
