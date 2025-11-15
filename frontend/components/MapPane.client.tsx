@@ -78,10 +78,10 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       el.style.width = "20px"
       el.style.height = "20px"
       el.style.borderRadius = "50%"
-      el.style.backgroundColor = "var(--primary)"
-      el.style.border = "2px solid #000"
+      el.style.backgroundColor = "#ff3131"
+      el.style.border = "2px solid #fff"
       el.style.cursor = "pointer"
-      el.style.boxShadow = "0 0 4px 1px var(--primary)"
+      el.style.boxShadow = "0 0 8px 2px rgba(255, 49, 49, 0.8)"
       el.title = confidence ? `${label} (${Math.round(confidence * 100)}%)` : label
 
       // Add marker to map
@@ -109,7 +109,7 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         type: "fill",
         source: sourceId,
         paint: {
-          "fill-color": "#60a5fa",
+          "fill-color": "#ff3131",
           "fill-opacity": 0.2,
         },
       })
@@ -119,7 +119,7 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         type: "line",
         source: sourceId,
         paint: {
-          "line-color": "#60a5fa",
+          "line-color": "#ff3131",
           "line-width": 2,
           "line-opacity": 0.6,
         },
@@ -207,7 +207,7 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
 
     mapboxgl.accessToken = mapboxToken
 
-    // Initialize map with performance-aware options
+    // Initialize map with performance-optimized options
     mapRef.current = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/standard",
@@ -218,6 +218,15 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       projection: isPerformanceMode ? "mercator" : ("globe" as any),
       antialias: !isPerformanceMode,
       cooperativeGestures: isPerformanceMode,
+      // Performance optimizations
+      fadeDuration: 100, // Faster tile transitions
+      renderWorldCopies: false, // Don't render duplicate world copies
+      optimizeForTerrain: false, // Disable terrain optimization for speed
+      maxTileCacheSize: 50, // Reduce tile cache for memory efficiency
+      localIdeographFontFamily: false, // Use web fonts only
+      preserveDrawingBuffer: false, // Better performance
+      refreshExpiredTiles: false, // Don't auto-refresh old tiles
+      trackResize: true, // Auto-handle container resize
     })
 
     // Add navigation controls (zoom, compass, pitch)
@@ -226,19 +235,26 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
     })
     mapRef.current.addControl(navigationControl, "top-right")
 
-    // Helper function to create radar marker element
+    // Helper function to create radar marker element (fixed size, no zoom adjustments)
     const createRadarMarkerElement = (accuracyMeters: number) => {
       const container = document.createElement("div")
       container.className = "user-radar-marker"
       
-      // Make radius much bigger - 400px for better visibility
-      const size = 800 // 400px radius = 800px diameter
+      // Fixed radius for consistent display - 400px radius = 800px diameter
+      const size = 800
+      
+      // Fixed distance ranges: 1km, 2km, 3km
+      const distances = [
+        { label: "1km", percent: 33 },
+        { label: "2km", percent: 66 },
+        { label: "3km", percent: 100 }
+      ]
       
       container.style.width = `${size}px`
       container.style.height = `${size}px`
       container.style.position = "relative"
       
-      // Create core blue dot
+      // Create core red dot
       const core = document.createElement("div")
       core.className = "user-radar-core"
       container.appendChild(core)
@@ -255,14 +271,8 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         container.appendChild(wave)
       }
       
-      // Add distance metric rings (1km, 2km, 3km)
-      const distances = [
-        { km: 1, percent: 33 },
-        { km: 2, percent: 66 },
-        { km: 3, percent: 100 }
-      ]
-      
-      distances.forEach(({ km, percent }) => {
+      // Add distance metric rings - fixed pixel sizes
+      distances.forEach(({ label, percent }) => {
         const ringSize = (size * percent) / 100
         
         // Create ring
@@ -274,7 +284,7 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         ring.style.top = "50%"
         ring.style.left = "50%"
         ring.style.transform = "translate(-50%, -50%)"
-        ring.style.border = "1px solid rgba(255, 199, 0, 0.3)"
+        ring.style.border = "2px solid rgba(255, 49, 49, 0.4)" // Red ring
         ring.style.borderRadius = "50%"
         ring.style.pointerEvents = "none"
         container.appendChild(ring)
@@ -307,10 +317,10 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         dirLabel.style.left = `${x}px`
         dirLabel.style.top = `${y}px`
         dirLabel.style.transform = "translate(-50%, -50%)"
-        dirLabel.style.color = "rgba(255, 199, 0, 1)"
+        dirLabel.style.color = "rgba(255, 49, 49, 1)" // Red labels
         dirLabel.style.fontSize = "16px"
         dirLabel.style.fontWeight = "800"
-        dirLabel.style.textShadow = "0 0 8px rgba(0, 0, 0, 1), 0 0 4px rgba(255, 199, 0, 0.6)"
+        dirLabel.style.textShadow = "0 0 8px rgba(0, 0, 0, 1), 0 0 4px rgba(255, 49, 49, 0.6)"
         dirLabel.style.pointerEvents = "none"
         dirLabel.style.fontFamily = "monospace"
         dirLabel.style.letterSpacing = "1.5px"
@@ -318,27 +328,27 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       })
       
       // Add distance labels at the North position on each ring
-      distances.forEach(({ km, percent }) => {
+      distances.forEach(({ label: distLabel, percent }) => {
         const ringSize = (size * percent) / 100
         
-        const label = document.createElement("div")
-        label.className = "radar-distance-label"
-        label.textContent = `${km}km`
-        label.style.position = "absolute"
-        label.style.top = `calc(50% - ${ringSize / 2}px - 6px)`
-        label.style.left = "50%"
-        label.style.transform = "translateX(-50%)"
-        label.style.color = "rgba(255, 199, 0, 0.9)"
-        label.style.fontSize = "12px"
-        label.style.fontWeight = "700"
-        label.style.textShadow = "0 0 6px rgba(0, 0, 0, 1)"
-        label.style.pointerEvents = "none"
-        label.style.fontFamily = "monospace"
-        label.style.backgroundColor = "rgba(0, 0, 0, 0.7)"
-        label.style.padding = "2px 6px"
-        label.style.borderRadius = "3px"
-        label.style.border = "1px solid rgba(255, 199, 0, 0.3)"
-        container.appendChild(label)
+        const labelElement = document.createElement("div")
+        labelElement.className = "radar-distance-label"
+        labelElement.textContent = distLabel
+        labelElement.style.position = "absolute"
+        labelElement.style.top = `calc(50% - ${ringSize / 2}px - 6px)`
+        labelElement.style.left = "50%"
+        labelElement.style.transform = "translateX(-50%)"
+        labelElement.style.color = "rgba(255, 49, 49, 0.9)" // Red labels
+        labelElement.style.fontSize = "12px"
+        labelElement.style.fontWeight = "700"
+        labelElement.style.textShadow = "0 0 6px rgba(0, 0, 0, 1)"
+        labelElement.style.pointerEvents = "none"
+        labelElement.style.fontFamily = "monospace"
+        labelElement.style.backgroundColor = "rgba(0, 0, 0, 0.7)"
+        labelElement.style.padding = "2px 6px"
+        labelElement.style.borderRadius = "3px"
+        labelElement.style.border = "1px solid rgba(255, 49, 49, 0.3)" // Red border
+        container.appendChild(labelElement)
       })
       
       return container
@@ -353,7 +363,7 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         userMarkerRef.current.remove()
       }
       
-      // Create new marker with radar effect
+      // Create new marker with radar effect (fixed size, no zoom)
       const markerElement = createRadarMarkerElement(accuracy)
       userMarkerRef.current = new mapboxgl.Marker({
         element: markerElement,
@@ -396,6 +406,7 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       console.warn("Geolocation error:", e)
     })
 
+    // Optimize map loading with idle event
     mapRef.current.on("load", () => {
       if (!mapRef.current) return
 
@@ -413,13 +424,18 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         })
       }
 
-      // Auto-trigger geolocation on load
-      setTimeout(() => {
-        if (geolocateControlRef.current) {
-          geolocateControlRef.current.trigger()
-        }
-      }, 500)
+      // Wait for map to be fully idle before triggering geolocation
+      mapRef.current.once("idle", () => {
+        // Use shorter delay for faster response
+        setTimeout(() => {
+          if (geolocateControlRef.current) {
+            geolocateControlRef.current.trigger()
+          }
+        }, 200)
+      })
     })
+
+    // No zoom listeners needed - radar is fixed size and works perfectly
 
     // Add resize observer to handle container size changes
     const resizeObserver = new ResizeObserver(() => {

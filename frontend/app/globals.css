@@ -216,20 +216,20 @@ body {
   position: absolute;
   width: 16px;
   height: 16px;
-  background: #3b82f6;
+  background: #ff3131;
   border: 3px solid white;
   border-radius: 50%;
-  box-shadow: 0 0 16px rgba(59, 130, 246, 1), 0 0 8px rgba(59, 130, 246, 0.8);
+  box-shadow: 0 0 16px rgba(255, 49, 49, 1), 0 0 8px rgba(255, 49, 49, 0.8);
   z-index: 1002;
 }
 
 .user-radar-wave {
   position: absolute;
-  border: 3px solid #3b82f6;
+  border: 3px solid #ff3131;
   border-radius: 50%;
   opacity: 0;
   animation: radar-pulse 4s ease-out infinite;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 10px rgba(255, 49, 49, 0.6);
   z-index: 1001;
 }
 
@@ -249,20 +249,20 @@ body {
   0% {
     transform: scale(0.2);
     opacity: 0.9;
-    border-color: #3b82f6;
+    border-color: #ff3131;
   }
   30% {
     opacity: 0.6;
-    border-color: #60a5fa;
+    border-color: #ff5555;
   }
   70% {
     opacity: 0.3;
-    border-color: #93c5fd;
+    border-color: #ff8888;
   }
   100% {
     transform: scale(1);
     opacity: 0;
-    border-color: #bfdbfe;
+    border-color: #ffbbbb;
   }
 }
 
