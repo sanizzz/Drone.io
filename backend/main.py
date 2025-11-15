@@ -27,14 +27,15 @@ model_volume = modal.Volume.from_name("drone-model")
 
 class AudioProcessor:
     def __init__(self):
+        # OPTIMIZED FOR DRONE SOUNDS: Must match train.py exactly!
         self.transform = nn.Sequential(
             T.MelSpectrogram(
                 sample_rate=22050,
-                n_fft=1024,
-                hop_length=512,
-                n_mels=128,
-                f_min=0,
-                f_max=11025
+                n_fft=2048,  # Better frequency resolution for similar sounds
+                hop_length=256,  # Better time resolution
+                n_mels=256,  # More bands to capture subtle differences
+                f_min=80,  # Drone BPF range starts here
+                f_max=8000  # Focus on propeller harmonics
             ),
             T.AmplitudeToDB()
         )

@@ -137,28 +137,29 @@ def train():
 
     drone_dir = Path("/opt/drone-data")
 
+    # OPTIMIZED FOR DRONE SOUNDS: Focus on high-frequency propeller signatures
     train_transform = nn.Sequential(
         T.MelSpectrogram(
             sample_rate=22050,
-            n_fft=1024,
-            hop_length=512,
-            n_mels=128,
-            f_min=0,
-            f_max=11025
+            n_fft=2048,  # Increased for better frequency resolution
+            hop_length=256,  # Smaller hop for better time resolution
+            n_mels=256,  # More mel bands to capture subtle differences
+            f_min=80,  # Start at typical drone BPF (Blade Pass Frequency)
+            f_max=8000  # Focus on propeller harmonics range
         ),
         T.AmplitudeToDB(),
-        T.FrequencyMasking(freq_mask_param=30),
-        T.TimeMasking(time_mask_param=80)
+        T.FrequencyMasking(freq_mask_param=15),  # Reduced - less aggressive
+        T.TimeMasking(time_mask_param=40)  # Reduced - preserve temporal patterns
     )
 
     val_transform = nn.Sequential(
         T.MelSpectrogram(
             sample_rate=22050,
-            n_fft=1024,
-            hop_length=512,
-            n_mels=128,
-            f_min=0,
-            f_max=11025
+            n_fft=2048,  # MUST match training!
+            hop_length=256,
+            n_mels=256,
+            f_min=80,
+            f_max=8000
         ),
         T.AmplitudeToDB()
     )
@@ -191,9 +192,10 @@ def train():
     model = AudioCNN(num_classes=len(train_dataset.classes))
     model.to(device)
 
-    num_epochs = 50
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
-    optimizer = optim.AdamW(model.parameters(), lr=0.0005, weight_decay=0.01)
+    # OPTIMIZED FOR SMALL DATASET WITH SIMILAR SOUNDS
+    num_epochs = 100  # More epochs for subtle differences
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.2)  # More smoothing for similar classes
+    optimizer = optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.05)  # Lower LR, higher regularization
 
     scheduler = OneCycleLR(
         optimizer,
