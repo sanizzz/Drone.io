@@ -10,7 +10,7 @@ import torchaudio
 import torch.nn as nn
 import torchaudio.transforms as T
 import torch.optim as optim
-from torch.optim.lr_scheduler import OneCycleLR
+# Removed OneCycleLR import - using CosineAnnealingWarmRestarts instead
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
@@ -137,6 +137,7 @@ def train():
 
     drone_dir = Path("/opt/drone-data")
 
+
     # OPTIMIZED FOR DRONE SOUNDS: Focus on high-frequency propeller signatures
     train_transform = nn.Sequential(
         T.MelSpectrogram(
@@ -189,7 +190,8 @@ def train():
     test_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = AudioCNN(num_classes=len(train_dataset.classes))
+    # Enhanced model with attention and dropout
+    model = AudioCNN(num_classes=len(train_dataset.classes), dropout_rate=0.5)
     model.to(device)
 
     # OPTIMIZED FOR SMALL DATASET WITH SIMILAR SOUNDS
@@ -197,12 +199,12 @@ def train():
     criterion = nn.CrossEntropyLoss(label_smoothing=0.2)  # More smoothing for similar classes
     optimizer = optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.05)  # Lower LR, higher regularization
 
-    scheduler = OneCycleLR(
+    # Cosine annealing with warm restarts for better convergence
+    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer,
-        max_lr=0.002,
-        epochs=num_epochs,
-        steps_per_epoch=len(train_dataloader),
-        pct_start=0.1
+        T_0=20,  # Initial restart period
+        T_mult=1,  # Period multiplier after each restart
+        eta_min=1e-6  # Minimum learning rate
     )
 
     best_accuracy = 0.0
@@ -228,14 +230,20 @@ def train():
 
             optimizer.zero_grad()
             loss.backward()
+            
+            # Gradient clipping for stability
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             optimizer.step()
-            scheduler.step()
 
             epoch_loss += loss.item()
             progress_bar.set_postfix({'Loss': f'{loss.item():.4f}'})
 
         avg_epoch_loss = epoch_loss / len(train_dataloader)
         writer.add_scalar('Loss/Train', avg_epoch_loss, epoch)
+        
+        # Step scheduler after epoch (for CosineAnnealingWarmRestarts)
+        scheduler.step()
         writer.add_scalar(
             'Learning_Rate', optimizer.param_groups[0]['lr'], epoch)
 
