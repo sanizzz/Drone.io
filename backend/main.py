@@ -42,6 +42,21 @@ class AudioProcessor:
     def process_audio_chunk(self, audio_data):
         waveform = torch.from_numpy(audio_data).float()
         waveform = waveform.unsqueeze(0)
+        
+        # Fixed-length audio preprocessing (MUST match training!)
+        # 5 seconds at 22050 Hz = 110,250 samples
+        target_length = 110250
+        current_length = waveform.shape[1]
+        
+        if current_length > target_length:
+            # Crop: Take center portion
+            start_idx = (current_length - target_length) // 2
+            waveform = waveform[:, start_idx:start_idx + target_length]
+        elif current_length < target_length:
+            # Pad: Add zeros to end
+            pad_length = target_length - current_length
+            waveform = torch.nn.functional.pad(waveform, (0, pad_length), mode='constant', value=0)
+        
         spectrogram = self.transform(waveform)
         
         # Fix NaN and inf values that can occur from AmplitudeToDB

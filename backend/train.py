@@ -18,6 +18,7 @@ from model import AudioCNN
 
 app = modal.App("audio-cnn")
 
+# Build container image with drone dataset
 image = (modal.Image.debian_slim()
          .pip_install_from_requirements("requirements.txt")
          .apt_install(["wget", "unzip", "ffmpeg", "libsndfile1"])
@@ -127,7 +128,7 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
-@app.function(image=image, gpu="A10G", volumes={"/data": volume, "/models": model_volume}, timeout=60 * 60 * 3)
+@app.function(image=image, gpu="A10G", volumes={"/models": model_volume}, timeout=60 * 60 * 3)
 def train():
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
