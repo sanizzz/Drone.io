@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from "react"
 import mapboxgl from "mapbox-gl"
+import * as turf from "@turf/turf"
 import "mapbox-gl/dist/mapbox-gl.css"
 import { createCirclePolygon } from "@/lib/geo"
 import { useRangeLine } from "./map/useRangeLine.tsx"
@@ -235,24 +236,15 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
     })
     mapRef.current.addControl(navigationControl, "top-right")
 
-    // Helper function to create radar marker element (fixed size, no zoom adjustments)
-    const createRadarMarkerElement = (accuracyMeters: number) => {
+    // Helper function to create radar marker element with proper distance scaling
+    const createRadarMarkerElement = (accuracyMeters: number, map: mapboxgl.Map) => {
       const container = document.createElement("div")
       container.className = "user-radar-marker"
+      container.style.position = "absolute"
+      container.style.pointerEvents = "none"
       
-      // Fixed radius for consistent display - 400px radius = 800px diameter
-      const size = 800
-      
-      // Fixed distance ranges: 1km, 2km, 3km
-      const distances = [
-        { label: "1km", percent: 33 },
-        { label: "2km", percent: 66 },
-        { label: "3km", percent: 100 }
-      ]
-      
-      container.style.width = `${size}px`
-      container.style.height = `${size}px`
-      container.style.position = "relative"
+      // Distance ranges to display: 1km, 2km, 3km
+      const distances = [1000, 2000, 3000] // meters
       
       // Create core red dot
       const core = document.createElement("div")
@@ -263,34 +255,47 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       for (let i = 0; i < 4; i++) {
         const wave = document.createElement("div")
         wave.className = "user-radar-wave"
-        wave.style.width = `${size}px`
-        wave.style.height = `${size}px`
         wave.style.position = "absolute"
-        wave.style.top = "0"
-        wave.style.left = "0"
         container.appendChild(wave)
       }
       
-      // Add distance metric rings - fixed pixel sizes
-      distances.forEach(({ label, percent }) => {
-        const ringSize = (size * percent) / 100
-        
+      // Store ring elements for updates
+      const ringElements: Array<{ ring: HTMLElement; label: HTMLElement; distance: number }> = []
+      
+      // Add distance metric rings
+      distances.forEach((distanceMeters, index) => {
         // Create ring
         const ring = document.createElement("div")
         ring.className = "radar-distance-ring"
-        ring.style.width = `${ringSize}px`
-        ring.style.height = `${ringSize}px`
         ring.style.position = "absolute"
-        ring.style.top = "50%"
-        ring.style.left = "50%"
-        ring.style.transform = "translate(-50%, -50%)"
-        ring.style.border = "2px solid rgba(255, 49, 49, 0.4)" // Red ring
+        ring.style.border = "2px solid rgba(255, 49, 49, 0.4)"
         ring.style.borderRadius = "50%"
         ring.style.pointerEvents = "none"
+        ring.style.transform = "translate(-50%, -50%)"
         container.appendChild(ring)
+        
+        // Create distance label
+        const labelElement = document.createElement("div")
+        labelElement.className = "radar-distance-label"
+        labelElement.textContent = `${distanceMeters / 1000}KM`
+        labelElement.style.position = "absolute"
+        labelElement.style.color = "rgba(255, 49, 49, 0.9)"
+        labelElement.style.fontSize = "11px"
+        labelElement.style.fontWeight = "700"
+        labelElement.style.textShadow = "0 0 6px rgba(0, 0, 0, 1)"
+        labelElement.style.pointerEvents = "none"
+        labelElement.style.fontFamily = "monospace"
+        labelElement.style.backgroundColor = "rgba(0, 0, 0, 0.7)"
+        labelElement.style.padding = "2px 5px"
+        labelElement.style.borderRadius = "3px"
+        labelElement.style.border = "1px solid rgba(255, 49, 49, 0.3)"
+        labelElement.style.whiteSpace = "nowrap"
+        container.appendChild(labelElement)
+        
+        ringElements.push({ ring, label: labelElement, distance: distanceMeters })
       })
       
-      // Add compass directions around the outer ring
+      // Add compass directions
       const directions = [
         { label: "N", angle: 0 },
         { label: "NE", angle: 45 },
@@ -302,54 +307,104 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         { label: "NW", angle: 315 }
       ]
       
-      const radius = size / 2
-      const labelOffset = 20 // Distance outside the circle
+      const directionElements: Array<{ element: HTMLElement; angle: number }> = []
       
       directions.forEach(({ label, angle }) => {
-        const angleRad = (angle - 90) * (Math.PI / 180) // -90 to start from top (North)
-        const x = radius + Math.cos(angleRad) * (radius + labelOffset)
-        const y = radius + Math.sin(angleRad) * (radius + labelOffset)
-        
         const dirLabel = document.createElement("div")
         dirLabel.className = "radar-direction-label"
         dirLabel.textContent = label
         dirLabel.style.position = "absolute"
-        dirLabel.style.left = `${x}px`
-        dirLabel.style.top = `${y}px`
-        dirLabel.style.transform = "translate(-50%, -50%)"
-        dirLabel.style.color = "rgba(255, 49, 49, 1)" // Red labels
-        dirLabel.style.fontSize = "16px"
+        dirLabel.style.color = "rgba(255, 49, 49, 1)"
+        dirLabel.style.fontSize = "14px"
         dirLabel.style.fontWeight = "800"
         dirLabel.style.textShadow = "0 0 8px rgba(0, 0, 0, 1), 0 0 4px rgba(255, 49, 49, 0.6)"
         dirLabel.style.pointerEvents = "none"
         dirLabel.style.fontFamily = "monospace"
         dirLabel.style.letterSpacing = "1.5px"
         container.appendChild(dirLabel)
+        
+        directionElements.push({ element: dirLabel, angle })
       })
       
-      // Add distance labels at the North position on each ring
-      distances.forEach(({ label: distLabel, percent }) => {
-        const ringSize = (size * percent) / 100
+      // Function to update ring sizes based on current zoom
+      const updateRingSizes = () => {
+        if (!map || !userMarkerRef.current) return
         
-        const labelElement = document.createElement("div")
-        labelElement.className = "radar-distance-label"
-        labelElement.textContent = distLabel
-        labelElement.style.position = "absolute"
-        labelElement.style.top = `calc(50% - ${ringSize / 2}px - 6px)`
-        labelElement.style.left = "50%"
-        labelElement.style.transform = "translateX(-50%)"
-        labelElement.style.color = "rgba(255, 49, 49, 0.9)" // Red labels
-        labelElement.style.fontSize = "12px"
-        labelElement.style.fontWeight = "700"
-        labelElement.style.textShadow = "0 0 6px rgba(0, 0, 0, 1)"
-        labelElement.style.pointerEvents = "none"
-        labelElement.style.fontFamily = "monospace"
-        labelElement.style.backgroundColor = "rgba(0, 0, 0, 0.7)"
-        labelElement.style.padding = "2px 6px"
-        labelElement.style.borderRadius = "3px"
-        labelElement.style.border = "1px solid rgba(255, 49, 49, 0.3)" // Red border
-        container.appendChild(labelElement)
-      })
+        const center = userMarkerRef.current.getLngLat()
+        const bearing = map.getBearing() // Get map rotation in degrees
+        
+        // Update each ring based on actual distance
+        ringElements.forEach(({ ring, label, distance }) => {
+          // Calculate a point at the distance from center (using North as reference)
+          const point = turf.destination(
+            [center.lng, center.lat],
+            distance / 1000,
+            0, // North direction (0 degrees = true North)
+            { units: "kilometers" }
+          )
+          
+          // Convert both points to screen pixels
+          const centerPixel = map.project([center.lng, center.lat])
+          const edgePixel = map.project(point.geometry.coordinates as [number, number])
+          
+          // Calculate pixel radius
+          const radiusPixels = Math.sqrt(
+            Math.pow(edgePixel.x - centerPixel.x, 2) +
+            Math.pow(edgePixel.y - centerPixel.y, 2)
+          )
+          
+          const diameter = radiusPixels * 2
+          
+          // Update ring size
+          ring.style.width = `${diameter}px`
+          ring.style.height = `${diameter}px`
+          ring.style.left = "0"
+          ring.style.top = "0"
+          
+          // Position label at true North on the ring - calculate where North appears on screen
+          // The map.project() already accounts for map rotation, so we just use the projected edge point
+          const dx = edgePixel.x - centerPixel.x
+          const dy = edgePixel.y - centerPixel.y
+          
+          label.style.left = `${dx}px`
+          label.style.top = `${dy - 6}px`
+          label.style.transform = "translate(-50%, -50%)"
+        })
+        
+        // Update direction labels to point to true cardinal directions
+        if (ringElements.length > 0) {
+          const outerRing = ringElements[ringElements.length - 1]
+          const outerDistance = outerRing.distance
+          const labelOffset = 25
+          
+          directionElements.forEach(({ element, angle }) => {
+            // Calculate actual geographic point in each cardinal direction
+            const directionPoint = turf.destination(
+              [center.lng, center.lat],
+              (outerDistance + labelOffset * (outerDistance / 1000)) / 1000,
+              angle, // Use true bearing angle
+              { units: "kilometers" }
+            )
+            
+            // Project to screen coordinates
+            const centerPixel = map.project([center.lng, center.lat])
+            const dirPixel = map.project(directionPoint.geometry.coordinates as [number, number])
+            
+            const x = dirPixel.x - centerPixel.x
+            const y = dirPixel.y - centerPixel.y
+            
+            element.style.left = `${x}px`
+            element.style.top = `${y}px`
+            element.style.transform = "translate(-50%, -50%)"
+          })
+        }
+      }
+      
+      // Initial update
+      setTimeout(updateRingSizes, 100)
+      
+      // Store update function for later use
+      ;(container as any).updateRingSizes = updateRingSizes
       
       return container
     }
@@ -363,8 +418,8 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
         userMarkerRef.current.remove()
       }
       
-      // Create new marker with radar effect (fixed size, no zoom)
-      const markerElement = createRadarMarkerElement(accuracy)
+      // Create new marker with radar effect
+      const markerElement = createRadarMarkerElement(accuracy, mapRef.current)
       userMarkerRef.current = new mapboxgl.Marker({
         element: markerElement,
         anchor: "center",
@@ -375,14 +430,17 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       console.log("Radar marker created at:", lng, lat, "with accuracy:", accuracy)
     }
 
-    // Add geolocate control (disable default marker, we'll use custom radar)
+    // Add geolocate control with maximum accuracy settings
     geolocateControlRef.current = new mapboxgl.GeolocateControl({
       positionOptions: {
         enableHighAccuracy: true,
+        timeout: 10000, // 10 seconds timeout
+        maximumAge: 0, // Don't use cached position
       },
       trackUserLocation: true,
-      showUserHeading: false,
+      showUserHeading: true, // Show heading if available
       showUserLocation: false, // Disable default marker
+      showAccuracyCircle: false, // We have our own radar
     })
     mapRef.current.addControl(geolocateControlRef.current, "top-right")
 
@@ -398,12 +456,59 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       // Update custom radar marker
       updateUserMarker(lng, lat, accuracy)
       
-      console.log("User location:", e.coords)
+      console.log("User location updated:", {
+        lng,
+        lat,
+        accuracy: `${accuracy.toFixed(2)}m`,
+        heading: e.coords.heading,
+        speed: e.coords.speed,
+        altitude: e.coords.altitude,
+      })
     })
 
     geolocateControlRef.current.on("error", (e: any) => {
       setLocationStatus("denied")
       console.warn("Geolocation error:", e)
+      console.warn("Make sure location permissions are enabled and you're using HTTPS")
+    })
+
+    // Listen to zoom and move events to update ring sizes
+    mapRef.current.on("zoom", () => {
+      if (userMarkerRef.current) {
+        const markerElement = userMarkerRef.current.getElement()
+        if ((markerElement as any).updateRingSizes) {
+          ;(markerElement as any).updateRingSizes()
+        }
+      }
+    })
+
+    mapRef.current.on("move", () => {
+      if (userMarkerRef.current) {
+        const markerElement = userMarkerRef.current.getElement()
+        if ((markerElement as any).updateRingSizes) {
+          ;(markerElement as any).updateRingSizes()
+        }
+      }
+    })
+
+    // Listen to rotation events to update cardinal directions
+    mapRef.current.on("rotate", () => {
+      if (userMarkerRef.current) {
+        const markerElement = userMarkerRef.current.getElement()
+        if ((markerElement as any).updateRingSizes) {
+          ;(markerElement as any).updateRingSizes()
+        }
+      }
+    })
+
+    // Listen to pitch changes to update directions
+    mapRef.current.on("pitch", () => {
+      if (userMarkerRef.current) {
+        const markerElement = userMarkerRef.current.getElement()
+        if ((markerElement as any).updateRingSizes) {
+          ;(markerElement as any).updateRingSizes()
+        }
+      }
     })
 
     // Optimize map loading with idle event
@@ -491,7 +596,7 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
           {locationStatus === "granted" && (
             <>
               <div className="h-2 w-2 rounded-full bg-green-500 glow"></div>
-              <span className="text-xs text-green-500">Location active</span>
+              <span className="text-xs text-primary">Location active</span>
             </>
           )}
           {locationStatus === "denied" && (

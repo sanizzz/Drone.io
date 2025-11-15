@@ -1,10 +1,11 @@
 "use client"
 
-import React, { type RefObject, useState } from "react"
+import React, { type RefObject, useState, useMemo } from "react"
 import { Separator } from "@/components/ui/separator"
 import { RadarCard, type Detection } from "./RadarCard"
 import { RangeCard } from "./RangeCard"
 import { AudioUpload } from "./AudioUpload"
+import { ThreatLevel } from "./ThreatLevel"
 import type { MapPaneRef } from "./MapPane.client"
 import { randomPointInRadius } from "@/lib/geo"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,19 +15,6 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 
-interface LeftSliderProps {
-  mapRef: RefObject<MapPaneRef | null>
-  detections: Detection[]
-  userLocation: { lng: number; lat: number } | null
-  onDetectionClick: (detection: Detection) => void
-  onAddDetection: (lng: number, lat: number, label?: string, confidence?: number) => void
-}
-
-interface ClassificationResult {
-  class: string
-  confidence: number
-}
-
 interface PredictionLog {
   id: string
   timestamp: number
@@ -34,21 +22,37 @@ interface PredictionLog {
   confidence: number
 }
 
+interface LeftSliderProps {
+  mapRef: RefObject<MapPaneRef | null>
+  detections: Detection[]
+  userLocation: { lng: number; lat: number } | null
+  predictionLogs: PredictionLog[]
+  onDetectionClick: (detection: Detection) => void
+  onAddDetection: (lng: number, lat: number, label?: string, confidence?: number, isDrone?: boolean) => void
+}
+
+interface ClassificationResult {
+  class: string
+  confidence: number
+}
+
 export function LeftSlider({ 
   mapRef, 
   detections, 
   userLocation, 
+  predictionLogs,
   onDetectionClick,
   onAddDetection 
 }: LeftSliderProps) {
   const [predictions, setPredictions] = useState<ClassificationResult[] | null>(null)
   const [isDroneDetected, setIsDroneDetected] = useState<boolean | null>(null)
-  const [predictionLogs, setPredictionLogs] = useState<PredictionLog[]>([])
   const { toast } = useToast()
 
-  function handleDeleteLog(logId: string) {
-    setPredictionLogs(prev => prev.filter(log => log.id !== logId))
-  }
+  // Calculate recent drone detections for threat level
+  const recentDroneDetections = useMemo(() => {
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000
+    return predictionLogs.filter(log => log.isDrone && log.timestamp > fiveMinutesAgo).length
+  }, [predictionLogs])
 
   function handleUploadComplete(result: { isDrone: boolean; confidence?: number; predictions?: ClassificationResult[] }) {
     const userLoc = mapRef.current?.getUserLocation()
@@ -63,15 +67,6 @@ export function LeftSlider({
       setPredictions(result.predictions)
       setIsDroneDetected(result.isDrone)
     }
-
-    // Add to prediction log
-    const newLog: PredictionLog = {
-      id: `log-${Date.now()}`,
-      timestamp: Date.now(),
-      isDrone: result.isDrone,
-      confidence: result.confidence || 0
-    }
-    setPredictionLogs(prev => [newLog, ...prev])
 
     // Show toast notification for drone detection
     if (result.isDrone) {
@@ -96,31 +91,31 @@ export function LeftSlider({
       targetPoint[0], 
       targetPoint[1], 
       label, 
-      result.confidence
+      result.confidence,
+      result.isDrone
     )
   }
 
   return (
-    <div className="flex flex-col h-full bg-background overflow-hidden">
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-6 md:p-8 space-y-6">
-          {/* Header and Audio Upload Side by Side */}
-          <div className="flex flex-col md:flex-row justify-between gap-6 md:items-stretch">
+    <div className="flex flex-col h-full bg-background overflow-hidden border-r border-border">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex flex-col h-full p-1.5 sm:p-2 md:p-3 gap-1.5 sm:gap-2">
+          {/* Header and Audio Upload */}
+          <div className="flex flex-col gap-1 sm:gap-1.5 flex-shrink-0">
             <div className="flex-shrink-0">
               <h2
-                className="text-3xl md:text-4xl font-light tracking-wide"
+                className="text-xs sm:text-sm md:text-base font-light tracking-wide leading-tight"
                 style={{ fontFamily: "var(--font-sentient)" }}
               >
                 <span className="text-foreground">Early</span>
-                <br />
+                {" "}
                 <span className="text-primary italic">Warnings</span>
-                <br />
+                {" "}
                 <span className="text-foreground italic">Detection</span>
               </h2>
             </div>
 
-            {/* let it expand instead of w-64 */}
-            <div className="flex-1 max-w-md md:max-w-lg">
+            <div className="w-full">
               <AudioUpload
                 onUploadComplete={handleUploadComplete}
                 disabled={!userLocation}
@@ -128,36 +123,36 @@ export function LeftSlider({
             </div>
           </div>
 
-          <Separator className="bg-border" />
+          <Separator className="bg-border flex-shrink-0 my-0.5" />
 
           {/* Predictions Display Card */}
-          <Card className="border-border bg-card">
-            <CardHeader className="pb-3 pt-3 px-4">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm text-primary font-medium">TOP PREDICTIONS</CardTitle>
+          <Card className="border-border bg-card flex-shrink-0">
+            <CardHeader className="pb-1 pt-1 sm:pb-1.5 sm:pt-1.5 px-1.5 sm:px-2">
+              <div className="flex items-center gap-1">
+                <Activity className="h-2.5 w-2.5 text-primary" />
+                <CardTitle className="text-[9px] sm:text-[10px] text-primary font-medium">TOP PREDICTIONS</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="px-4 pb-4 pt-0">
+            <CardContent className="px-1.5 sm:px-2 pb-1.5 sm:pb-2 pt-0">
               {predictions && predictions.length > 0 ? (
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {predictions.map((pred, index) => (
+                <div className="space-y-1">
+                  {predictions.slice(0, 3).map((pred, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 rounded-md bg-secondary/50 border border-border hover:border-primary/30 transition-colors"
+                      className="flex items-center justify-between p-1 sm:p-1.5 rounded-md bg-secondary/50 border border-border hover:border-primary/30 transition-colors"
                     >
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="text-xs font-medium text-muted-foreground w-4">
+                      <div className="flex items-center gap-1 flex-1 min-w-0">
+                        <span className="text-[9px] font-medium text-muted-foreground w-2.5">
                           {index + 1}
                         </span>
-                        <span className="text-sm text-foreground font-medium">
+                        <span className="text-[9px] sm:text-[10px] text-foreground font-medium truncate">
                           {pred.class.replace(/_/g, " ")}
                         </span>
                       </div>
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-xs font-bold",
+                          "text-[9px] font-bold px-1 py-0",
                           pred.confidence > 0.7 
                             ? "border-primary/50 text-primary bg-primary/10" 
                             : "border-border text-muted-foreground"
@@ -170,17 +165,17 @@ export function LeftSlider({
                   
                   {/* Detection Status */}
                   <div className={cn(
-                    "mt-4 p-3 rounded-md border-2 flex items-center gap-2",
+                    "mt-1 p-1 sm:p-1.5 rounded-md border-2 flex items-center gap-1",
                     isDroneDetected 
                       ? "border-primary bg-primary/5" 
                       : "border-muted bg-muted/20"
                   )}>
                     <TrendingUp className={cn(
-                      "h-4 w-4",
+                      "h-2.5 w-2.5",
                       isDroneDetected ? "text-primary" : "text-muted-foreground"
                     )} />
                     <span className={cn(
-                      "text-xs font-bold",
+                      "text-[9px] font-bold",
                       isDroneDetected ? "text-primary" : "text-muted-foreground"
                     )}>
                       {isDroneDetected ? "DRONE DETECTED" : "NO DRONE DETECTED"}
@@ -188,99 +183,20 @@ export function LeftSlider({
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <Activity className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">UPLOAD AUDIO TO SEE PREDICTIONS</p>
+                <div className="text-center py-2">
+                  <Activity className="h-5 w-5 text-muted-foreground/30 mx-auto mb-0.5" />
+                  <p className="text-[9px] text-muted-foreground">UPLOAD AUDIO TO SEE PREDICTIONS</p>
                 </div>
               )}
             </CardContent>
           </Card>
+          <Separator className="bg-border flex-shrink-0 my-0.5" />
 
-          {/* Prediction Logs */}
-          <Card className="border-border bg-card">
-            <CardHeader className="pb-3 pt-3 px-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-sm text-primary font-medium">PREDICTION LOGS</CardTitle>
-                </div>
-                {predictionLogs.length > 0 && (
-                  <Badge variant="outline" className="text-xs">
-                    {predictionLogs.length}
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 pt-0">
-              {predictionLogs.length > 0 ? (
-                <div className="space-y-2 max-h-[250px] overflow-y-auto">
-                  {predictionLogs.map((log) => {
-                    const date = new Date(log.timestamp)
-                    const timeStr = date.toLocaleTimeString('en-US', { 
-                      hour: '2-digit', 
-                      minute: '2-digit',
-                      second: '2-digit'
-                    })
-                    
-                    return (
-                      <div
-                        key={log.id}
-                        className={cn(
-                          "flex items-center justify-between p-3 rounded-md border transition-colors group",
-                          log.isDrone 
-                            ? "bg-primary/5 border-primary/30 hover:border-primary/50" 
-                            : "bg-secondary/30 border-border hover:border-border/70"
-                        )}
-                      >
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className={cn(
-                            "h-2 w-2 rounded-full",
-                            log.isDrone ? "bg-primary" : "bg-muted-foreground"
-                          )} />
-                          <div className="flex-1">
-                            <p className={cn(
-                              "text-sm font-medium",
-                              log.isDrone ? "text-primary" : "text-foreground"
-                            )}>
-                              {log.isDrone ? "Drone" : "No Drone"}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {timeStr}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs font-bold",
-                              log.confidence > 0.7 
-                                ? "border-primary/50 text-primary bg-primary/10" 
-                                : "border-border text-muted-foreground"
-                            )}
-                          >
-                            {Math.round(log.confidence * 100)}%
-                          </Badge>
-                          <Button
-                            size="sm"
-                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive bg-transparent border-0"
-                            onClick={() => handleDeleteLog(log.id)}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Activity className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">NO PREDICTIONS YET</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Threat Level */}
+          <ThreatLevel 
+            detections={detections.length}
+            recentDroneDetections={recentDroneDetections}
+          />
 
         </div>
       </div>

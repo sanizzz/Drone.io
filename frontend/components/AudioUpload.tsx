@@ -186,14 +186,14 @@ export function AudioUpload({ onDroneDetected, onUploadComplete, disabled }: Aud
 
   return (
     <Card className="border-border bg-card">
-      <CardContent className="p-3">
+      <CardContent className="p-2">
         {/* Upload Area */}
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           className={cn(
-            "h-[60px] border border-dashed rounded-md flex items-center justify-center gap-3 px-3 transition-all",
+            "h-[50px] border border-dashed rounded-md flex items-center justify-center gap-2 px-2 transition-all",
             isDragging
               ? "border-primary bg-primary/10 scale-[1.02]"
               : "border-border hover:border-primary/50 hover:bg-primary/5",
@@ -212,12 +212,12 @@ export function AudioUpload({ onDroneDetected, onUploadComplete, disabled }: Aud
             </div>
           ) : (
             <>
-              <Upload className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              <Upload className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-foreground font-medium truncate">
+                <p className="text-[10px] text-foreground font-medium truncate">
                   Drag & drop .wav file
                 </p>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[9px] text-muted-foreground">
                   or click to browse
                 </p>
               </div>
@@ -233,7 +233,7 @@ export function AudioUpload({ onDroneDetected, onUploadComplete, disabled }: Aud
                 <Button
                   type="button"
                   size="sm"
-                  className="border border-primary text-primary hover:bg-primary hover:text-primary-foreground bg-transparent h-7 text-[10px] px-3"
+                  className="border border-primary text-primary hover:bg-primary hover:text-primary-foreground bg-transparent h-6 text-[9px] px-2"
                   disabled={disabled}
                   asChild
                 >

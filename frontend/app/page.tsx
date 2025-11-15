@@ -3,9 +3,17 @@
 import React, { useRef, useState, useCallback, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { LeftSlider } from "@/components/LeftSlider"
+import { PredictionLogs } from "@/components/PredictionLogs"
 import type { MapPaneRef } from "@/components/MapPane.client"
 import type { Detection } from "@/components/RadarCard"
 import { calculateBearing, calculateDistance } from "@/lib/geo"
+
+interface PredictionLog {
+  id: string
+  timestamp: number
+  isDrone: boolean
+  confidence: number
+}
 
 const MapPane = dynamic(() => import("@/components/MapPane.client").then((mod) => ({ default: mod.MapPane })), {
   ssr: false,
@@ -20,6 +28,11 @@ export default function Home() {
   const mapRef = useRef<MapPaneRef>(null)
   const [detections, setDetections] = useState<Detection[]>([])
   const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null)
+  const [predictionLogs, setPredictionLogs] = useState<PredictionLog[]>([])
+
+  const handleDeleteLog = useCallback((logId: string) => {
+    setPredictionLogs(prev => prev.filter(log => log.id !== logId))
+  }, [])
 
   // Poll for user location updates
   useEffect(() => {
@@ -38,13 +51,25 @@ export default function Home() {
     lng: number,
     lat: number,
     label?: string,
-    confidence?: number
+    confidence?: number,
+    isDrone?: boolean
   ) => {
     console.log("Adding detection at:", { lng, lat, label, confidence })
     
     if (!mapRef.current) {
       console.error("Map ref not available")
       return
+    }
+
+    // Add to prediction logs if provided
+    if (isDrone !== undefined && confidence !== undefined) {
+      const newLog: PredictionLog = {
+        id: `log-${Date.now()}`,
+        timestamp: Date.now(),
+        isDrone,
+        confidence
+      }
+      setPredictionLogs(prev => [newLog, ...prev])
     }
 
     // Add marker to map
@@ -116,14 +141,20 @@ export default function Home() {
 
   return (
     <main className="split">
-      <LeftSlider
-        mapRef={mapRef}
-        detections={detections}
-        userLocation={userLocation}
-        onDetectionClick={handleDetectionClick}
-        onAddDetection={handleAddDetection}
-      />
-      <MapPane ref={mapRef} />
+      <div className="h-full overflow-hidden">
+        <LeftSlider
+          mapRef={mapRef}
+          detections={detections}
+          userLocation={userLocation}
+          predictionLogs={predictionLogs}
+          onDetectionClick={handleDetectionClick}
+          onAddDetection={handleAddDetection}
+        />
+      </div>
+      <div className="h-full overflow-hidden relative">
+        <MapPane ref={mapRef} />
+        <PredictionLogs logs={predictionLogs} onDeleteLog={handleDeleteLog} />
+      </div>
     </main>
   )
 }
