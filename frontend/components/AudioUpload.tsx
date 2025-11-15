@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 
 interface AudioUploadProps {
   onDroneDetected?: (confidence: number) => void
-  onUploadComplete?: (result: { isDrone: boolean; confidence?: number }) => void
+  onUploadComplete?: (result: { isDrone: boolean; confidence?: number; predictions?: ClassificationResult[] }) => void
   disabled?: boolean
 }
 
@@ -42,55 +42,104 @@ export function AudioUpload({ onDroneDetected, onUploadComplete, disabled }: Aud
       setError(null)
 
       try {
-        // Simulate upload and processing
+        // Update progress during upload
         const progressInterval = setInterval(() => {
           setUploadProgress((prev) => Math.min(prev + 10, 90))
-        }, 100)
+        }, 200)
 
-        // Simulate processing delay
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-
+        // ===== MOCK DATA FOR TESTING (Comment out to use real API) =====
+        await new Promise(resolve => setTimeout(resolve, 1500)) // Simulate API delay
         clearInterval(progressInterval)
         setUploadProgress(100)
 
-        // DEMO MODE: Generate random predictions
-        // 60% chance of detecting a drone for demo purposes
-        const isDroneDetected = Math.random() > 0.4
-        
-        const predictions: ClassificationResult[] = isDroneDetected
-          ? [
-              { class: "drone", confidence: 0.75 + Math.random() * 0.2 },
-              { class: "helicopter", confidence: 0.15 + Math.random() * 0.1 },
-              { class: "airplane", confidence: 0.08 + Math.random() * 0.05 },
-              { class: "engine", confidence: 0.05 + Math.random() * 0.03 },
-              { class: "wind", confidence: 0.02 + Math.random() * 0.02 },
-            ]
-          : [
-              { class: "wind", confidence: 0.45 + Math.random() * 0.2 },
-              { class: "birds", confidence: 0.25 + Math.random() * 0.15 },
-              { class: "traffic", confidence: 0.15 + Math.random() * 0.1 },
-              { class: "rain", confidence: 0.08 + Math.random() * 0.05 },
-              { class: "voices", confidence: 0.04 + Math.random() * 0.03 },
-            ]
+        // Generate random mock predictions
+        const mockClasses = [
+          { class: "commercial_drone", drone: true },
+          { class: "helicopter", drone: true },
+          { class: "racing_drone", drone: true },
+          { class: "bird", drone: false },
+          { class: "airplane", drone: false },
+          { class: "car_engine", drone: false },
+          { class: "wind", drone: false },
+        ]
+
+        const shuffled = [...mockClasses].sort(() => Math.random() - 0.5)
+        const predictions: ClassificationResult[] = shuffled.slice(0, 3).map((item, idx) => ({
+          class: item.class,
+          confidence: Math.random() * 0.4 + (idx === 0 ? 0.5 : 0.3), // First one gets higher confidence
+        }))
 
         const droneDetection = predictions.find((p) => 
           p.class.toLowerCase().includes("drone") || 
           p.class.toLowerCase().includes("helicopter")
         )
         
+        const isDroneDetected = droneDetection !== undefined
+        
         setResult({
           predictions,
           isDrone: isDroneDetected,
         })
 
-        // Trigger upload complete callback to create ONE marker
         const confidence = droneDetection?.confidence
         setTimeout(() => {
           onUploadComplete?.({
             isDrone: isDroneDetected,
             confidence,
+            predictions,
           })
         }, 500)
+        // ===== END MOCK DATA =====
+
+        // ===== REAL API CALL (Uncomment when backend is ready) =====
+        // const formData = new FormData()
+        // formData.append("file", file)
+
+        // const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL
+        // if (!backendUrl) {
+        //   throw new Error("Backend API URL not configured")
+        // }
+
+        // const response = await fetch(`${backendUrl}/inference`, {
+        //   method: "POST",
+        //   body: formData,
+        // })
+
+        // clearInterval(progressInterval)
+        // setUploadProgress(100)
+
+        // if (!response.ok) {
+        //   throw new Error(`API error: ${response.status}`)
+        // }
+
+        // const data = await response.json()
+        
+        // // Backend returns top 3 predictions with actual confidence scores
+        // const predictions: ClassificationResult[] = data.predictions || []
+        
+        // // Check if drone or helicopter is detected in the predictions
+        // const droneDetection = predictions.find((p) => 
+        //   p.class.toLowerCase().includes("drone") || 
+        //   p.class.toLowerCase().includes("helicopter")
+        // )
+        
+        // const isDroneDetected = droneDetection !== undefined
+        
+        // setResult({
+        //   predictions,
+        //   isDrone: isDroneDetected,
+        // })
+
+        // // Trigger upload complete callback to create ONE marker
+        // const confidence = droneDetection?.confidence
+        // setTimeout(() => {
+        //   onUploadComplete?.({
+        //     isDrone: isDroneDetected,
+        //     confidence,
+        //     predictions,
+        //   })
+        // }, 500)
+        // ===== END REAL API CALL =====
       } catch (err) {
         console.error("Upload error:", err)
         setError(err instanceof Error ? err.message : "Upload failed")
@@ -136,58 +185,42 @@ export function AudioUpload({ onDroneDetected, onUploadComplete, disabled }: Aud
   )
 
   return (
-    <Card className="border-border bg-card flex flex-col">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-xl text-primary font-light flex items-center gap-2">
-          <FileAudio className="h-5 w-5" />
-          Audio Upload
-        </CardTitle>
-        <CardDescription className="text-xs text-muted-foreground">
-          Upload .wav audio to simulate drone detection (Demo Mode)
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="flex flex-col space-y-3 pt-0">
+    <Card className="border-border bg-card">
+      <CardContent className="p-3">
         {/* Upload Area */}
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           className={cn(
-            "min-h-[150px] border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-4 transition-colors",
+            "h-[60px] border border-dashed rounded-md flex items-center justify-center gap-3 px-3 transition-all",
             isDragging
-              ? "border-primary bg-primary/10"
-              : "border-border hover:border-primary/50",
+              ? "border-primary bg-primary/10 scale-[1.02]"
+              : "border-border hover:border-primary/50 hover:bg-primary/5",
             disabled && "opacity-50 cursor-not-allowed"
           )}
         >
           {isUploading ? (
-            <div className="flex flex-col items-center gap-3 w-full">
-              <Loader2 className="h-10 w-10 text-primary animate-spin" />
-              <div className="w-full space-y-1.5">
-                <Progress value={uploadProgress} className="h-1.5" />
-                <p className="text-xs text-center text-muted-foreground">
+            <div className="flex items-center gap-3 w-full">
+              <Loader2 className="h-5 w-5 text-primary animate-spin flex-shrink-0" />
+              <div className="flex-1 space-y-1">
+                <Progress value={uploadProgress} className="h-1" />
+                <p className="text-[10px] text-muted-foreground">
                   Analyzing... {uploadProgress}%
                 </p>
               </div>
             </div>
           ) : (
             <>
-              <Upload className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-xs text-center text-foreground mb-1.5">
-                Drag & drop .wav file
-              </p>
-              <p className="text-[10px] text-center text-muted-foreground mb-3">or</p>
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="border border-primary text-primary hover:bg-primary hover:text-primary-foreground bg-transparent"
-                  disabled={disabled}
-                >
-                  Browse Files
-                </Button>
-              </label>
+              <Upload className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-foreground font-medium truncate">
+                  Drag & drop .wav file
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  or click to browse
+                </p>
+              </div>
               <input
                 id="file-upload"
                 type="file"
@@ -196,81 +229,26 @@ export function AudioUpload({ onDroneDetected, onUploadComplete, disabled }: Aud
                 onChange={handleFileInput}
                 disabled={disabled}
               />
-              <p className="text-[10px] text-center text-muted-foreground mt-3">
-                Demo: 60% detection rate
-              </p>
+              <label htmlFor="file-upload" className="cursor-pointer flex-shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="border border-primary text-primary hover:bg-primary hover:text-primary-foreground bg-transparent h-7 text-[10px] px-3"
+                  disabled={disabled}
+                  asChild
+                >
+                  <span>Browse</span>
+                </Button>
+              </label>
             </>
           )}
         </div>
 
         {/* Error Display */}
         {error && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/50">
-            <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
-            <p className="text-sm text-destructive">{error}</p>
-          </div>
-        )}
-
-        {/* Results Display */}
-        {result && (
-          <div className="space-y-3">
-            <div
-              className={cn(
-                "flex items-center gap-2 p-3 rounded-lg border",
-                result.isDrone
-                  ? "bg-primary/10 border-primary/50"
-                  : "bg-muted border-border"
-              )}
-            >
-              {result.isDrone ? (
-                <>
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-primary">Drone Detected!</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Marker added to map
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">No Drone Detected</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Try another audio file
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Top Predictions */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-mono uppercase tracking-wide text-muted-foreground">
-                Top Predictions
-              </h4>
-              <div className="space-y-1.5">
-                {result.predictions.map((pred, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-2 rounded bg-muted/50"
-                  >
-                    <span className="text-sm text-foreground capitalize">
-                      {pred.class.replace(/_/g, " ")}
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        pred.confidence > 0.7 ? "border-primary/50 text-primary" : ""
-                      )}
-                    >
-                      {Math.round(pred.confidence * 100)}%
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="flex items-center gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/50">
+            <AlertCircle className="h-3 w-3 text-destructive flex-shrink-0" />
+            <p className="text-[10px] text-destructive">{error}</p>
           </div>
         )}
       </CardContent>

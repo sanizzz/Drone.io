@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "mapbox-gl/dist/mapbox-gl.css";
@@ -11,19 +12,19 @@
   --card-foreground: #ffffff;
   --popover: #000000;
   --popover-foreground: #ffffff;
-  --primary: #FFC700;
-  --primary-foreground: #000000;
+  --primary: #ff3131;
+  --primary-foreground: #ffffff;
   --secondary: #1a1a1a;
   --secondary-foreground: #ffffff;
   --muted: #1a1a1a;
   --muted-foreground: #a1a1a1;
-  --accent: #FFC700;
-  --accent-foreground: #000000;
-  --destructive: #ef4444;
+  --accent: #ff3131;
+  --accent-foreground: #ffffff;
+  --destructive: #ff3131;
   --destructive-foreground: #ffffff;
   --border: #424242;
   --input: #1a1a1a;
-  --ring: #FFC700;
+  --ring: #ff3131;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -32,12 +33,12 @@
   --radius: 0.625rem;
   --sidebar: #000000;
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: #FFC700;
-  --sidebar-primary-foreground: #000000;
+  --sidebar-primary: #ff3131;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #1a1a1a;
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #424242;
-  --sidebar-ring: #FFC700;
+  --sidebar-ring: #ff3131;
   --shadow-glow: 0 0 8px 2px;
 }
 
@@ -77,24 +78,8 @@
 }
 
 
-@font-face {
-  font-family: "Sentient";
-  src: url("/Sentient-Extralight.woff") format("woff");
-  font-weight: 200;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Sentient";
-  src: url("/Sentient-LightItalic.woff") format("woff");
-  font-weight: 300;
-  font-style: italic;
-  font-display: swap;
-}
-
 @theme inline {
-  --font-sentient: "Sentient", serif;
+  --font-orbitron: "Orbitron", sans-serif;
   --font-geist-mono: var(--font-geist-mono);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -137,9 +122,12 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    text-transform: uppercase;
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "Orbitron", sans-serif;
+    font-optical-sizing: auto;
   }
 }
 
@@ -159,7 +147,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-mono), monospace;
+  font-family: "Orbitron", sans-serif;
 }
 
 @utility glow {
