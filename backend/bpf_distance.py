@@ -52,6 +52,19 @@ def detect_bpf_and_distance(
         }
     """
     
+    # Input validation
+    if len(waveform) == 0:
+        raise ValueError("Empty waveform provided")
+    
+    if sample_rate != 22050:
+        raise ValueError(f"Expected sample_rate=22050 Hz, got {sample_rate} Hz")
+    
+    if not isinstance(waveform, np.ndarray):
+        raise TypeError(f"Waveform must be numpy array, got {type(waveform)}")
+    
+    if waveform.ndim != 1:
+        raise ValueError(f"Waveform must be 1D (mono), got shape {waveform.shape}")
+    
     # 1. Compute FFT (Fast Fourier Transform)
     fft = np.fft.rfft(waveform)  # Real FFT (positive frequencies only)
     freqs = np.fft.rfftfreq(len(waveform), 1.0 / sample_rate)

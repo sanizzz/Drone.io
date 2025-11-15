@@ -4,9 +4,13 @@ Prepare binary classification dataset by combining drone + ESC-50 non-drone samp
 import pandas as pd
 from pathlib import Path
 import shutil
+import random
 
 
 def prepare_binary_dataset():
+    # Set random seed for reproducibility
+    random.seed(42)
+    
     # Source paths
     drone_dataset = Path("/opt/drone-data/audio")
     esc50_dataset = Path("/opt/esc50-data/audio")
@@ -29,7 +33,7 @@ def prepare_binary_dataset():
             records.append({
                 "filename": f"drone/{audio_file.name}",
                 "category": "drone",
-                "fold": (drone_count % 5) + 1  # Distribute across 5 folds
+                "fold": random.randint(1, 5)  # Random fold assignment to prevent data leakage
             })
             drone_count += 1
     
@@ -61,11 +65,17 @@ def prepare_binary_dataset():
     meta_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(meta_dir / "binary_metadata.csv", index=False)
     
-    print(f"✅ Binary dataset created:")
+    print("✅ Binary dataset created:")
     print(f"   - Drone samples: {drone_count}")
     print(f"   - Non-drone samples: {len(non_drone_files)}")
     print(f"   - Total: {len(df)}")
-    print(f"   - Train/test split: fold 5 = test, rest = train")
+    print("   - Train/test split: fold 5 = test, rest = train")
+    print("\n   - Fold distribution:")
+    for fold_num in range(1, 6):
+        fold_df = df[df['fold'] == fold_num]
+        drone_count_fold = len(fold_df[fold_df['category'] == 'drone'])
+        not_drone_count_fold = len(fold_df[fold_df['category'] == 'not_drone'])
+        print(f"     Fold {fold_num}: {len(fold_df)} total ({drone_count_fold} drone, {not_drone_count_fold} not-drone)")
 
 
 if __name__ == "__main__":

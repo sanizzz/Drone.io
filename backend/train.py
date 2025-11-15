@@ -34,7 +34,8 @@ volume = modal.Volume.from_name("drone-data", create_if_missing=True)
 model_volume = modal.Volume.from_name("drone-model", create_if_missing=True)
 
 
-class ESC50Dataset(Dataset):
+class DroneAudioDataset(Dataset):
+    """Dataset for multi-class drone classification (drone_A, drone_B, ..., drone_J)"""
     def __init__(self, data_dir, metadata_file, split="train", transform=None):
         super().__init__()
         self.data_dir = Path(data_dir)
@@ -128,17 +129,21 @@ def train():
         T.AmplitudeToDB()
     )
 
-    train_dataset = ESC50Dataset(
+    train_dataset = DroneAudioDataset(
         data_dir=drone_dir, metadata_file=drone_dir / "meta" / "drone_metadata.csv", split="train", transform=train_transform)
 
-    val_dataset = ESC50Dataset(
+    val_dataset = DroneAudioDataset(
         data_dir=drone_dir, metadata_file=drone_dir / "meta" / "drone_metadata.csv", split="test", transform=val_transform)
 
     print(f"Training samples: {len(train_dataset)}")
     print(f"Val samples: {len(val_dataset)}")
 
-    train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-    test_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False)
+    # Dynamic batch size: use 16 or smaller if dataset is tiny
+    batch_size = min(16, max(4, len(train_dataset) // 4))  # At least 4 batches, min 4
+    print(f"Using batch size: {batch_size}")
+    
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = AudioCNN(num_classes=len(train_dataset.classes))

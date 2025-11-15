@@ -61,11 +61,30 @@ class InferenceRequest(BaseModel):
 class AudioClassifier:
     @modal.enter()
     def load_model(self):
+        import json
+        import os
+        
         print("Loading models on container start...")
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+        # Check model files exist
+        binary_model_path = '/models/binary_model.pth'
+        multiclass_model_path = '/models/best_model.pth'
+        
+        if not os.path.exists(binary_model_path):
+            raise FileNotFoundError(
+                f"❌ Binary model not found at {binary_model_path}. "
+                "Please train it first: modal run train_binary.py"
+            )
+        
+        if not os.path.exists(multiclass_model_path):
+            raise FileNotFoundError(
+                f"❌ Multi-class model not found at {multiclass_model_path}. "
+                "Please train it first: modal run train.py"
+            )
+
         # Load binary classifier (Stage 1)
-        binary_checkpoint = torch.load('/models/binary_model.pth', map_location=self.device)
+        binary_checkpoint = torch.load(binary_model_path, map_location=self.device)
         self.binary_classes = binary_checkpoint['classes']  # ['not_drone', 'drone']
         
         self.binary_model = AudioCNN(num_classes=2)
@@ -75,7 +94,7 @@ class AudioClassifier:
         print(f"✅ Binary model loaded (accuracy: {binary_checkpoint['accuracy']:.2f}%)")
 
         # Load multi-class classifier (Stage 2)
-        multiclass_checkpoint = torch.load('/models/best_model.pth', map_location=self.device)
+        multiclass_checkpoint = torch.load(multiclass_model_path, map_location=self.device)
         self.drone_classes = multiclass_checkpoint['classes']  # ['drone_A', ..., 'drone_J']
         
         self.multiclass_model = AudioCNN(num_classes=len(self.drone_classes))
@@ -87,15 +106,13 @@ class AudioClassifier:
         self.audio_processor = AudioProcessor()
         
         # Load calibration
-        import json
-        import os
         calib_path = '/models/calibration.json'
         if os.path.exists(calib_path):
             with open(calib_path, 'r') as f:
                 self.calibration = json.load(f)
             print(f"✅ Calibration loaded: {len(self.calibration.get('drone_classes', {}))} classes")
         else:
-            print("⚠️  No calibration.json found")
+            print("⚠️  No calibration.json found, using defaults")
             self.calibration = {"alpha": 0.01, "drone_classes": {}}
 
     @modal.fastapi_endpoint(method="POST")
@@ -126,9 +143,32 @@ class AudioClassifier:
         # Preprocess audio
         audio_data, sample_rate = sf.read(io.BytesIO(audio_bytes), dtype="float32")
 
+        # Validate sample rate
+        if sample_rate < 8000 or sample_rate > 96000:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid sample rate {sample_rate}Hz. Expected 8kHz-96kHz (standard audio range)"
+            )
+
         if audio_data.ndim > 1:
             audio_data = np.mean(audio_data, axis=1)
 
+        # Validate audio duration
+        max_duration = 60  # seconds
+        duration = len(audio_data) / sample_rate
+        if duration > max_duration:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Audio too long. Maximum {max_duration}s allowed, got {duration:.1f}s"
+            )
+        
+        if duration < 0.1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Audio too short. Minimum 0.1s required, got {duration:.2f}s"
+            )
+
+        # Resample to 22050 Hz if needed
         if sample_rate != 22050:
             audio_data = librosa.resample(y=audio_data, orig_sr=sample_rate, target_sr=22050)
 
@@ -290,7 +330,7 @@ def main():
     print(f"Is drone: {result['is_drone']}")
     print(f"Binary confidence: {result['binary_confidence']:.2%}")
     if result['is_drone']:
-        print(f"\nTop predictions:")
+        print("\nTop predictions:")
         for pred in result['predictions']:
             print(f"  - {pred['class']}: {pred['confidence']:.2%}")
         print(f"\nDistance: {result['distance_m']:.1f}m")

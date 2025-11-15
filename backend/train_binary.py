@@ -146,8 +146,12 @@ def train_binary():
     print(f"Training samples: {len(train_dataset)}")
     print(f"Val samples: {len(val_dataset)}")
 
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    test_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    # Dynamic batch size: use 32 or smaller if dataset is tiny
+    batch_size = min(32, max(8, len(train_dataset) // 4))  # At least 4 batches, min 8
+    print(f"Using batch size: {batch_size}")
+    
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
@@ -196,6 +200,8 @@ def train_binary():
         correct = 0
         total = 0
         val_loss = 0
+        class_correct = [0, 0]  # [not_drone, drone]
+        class_total = [0, 0]
 
         with torch.no_grad():
             for data, target in test_dataloader:
@@ -207,11 +213,20 @@ def train_binary():
                 _, predicted = torch.max(outputs.data, 1)
                 total += target.size(0)
                 correct += (predicted == target).sum().item()
+                
+                # Per-class accuracy
+                for i in range(len(target)):
+                    label = target[i].item()
+                    class_total[label] += 1
+                    if predicted[i] == label:
+                        class_correct[label] += 1
 
         accuracy = 100 * correct / total
         avg_val_loss = val_loss / len(test_dataloader)
 
         print(f'Epoch {epoch+1} Loss: {avg_epoch_loss:.4f}, Val Loss: {avg_val_loss:.4f}, Accuracy: {accuracy:.2f}%')
+        print(f'  -> Validation: {correct}/{total} correct predictions')
+        print(f'  -> Not-Drone: {class_correct[0]}/{class_total[0]} ({100*class_correct[0]/max(class_total[0],1):.1f}%), Drone: {class_correct[1]}/{class_total[1]} ({100*class_correct[1]/max(class_total[1],1):.1f}%)')
 
         if accuracy > best_accuracy:
             best_accuracy = accuracy
