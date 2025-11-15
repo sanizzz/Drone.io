@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator"
 import { RadarCard, type Detection } from "./RadarCard"
 import { RangeCard } from "./RangeCard"
 import { AudioUpload } from "./AudioUpload"
-import { ThreatLevel } from "./ThreatLevel"
+import { OperatorAnalytics } from "./OperatorAnalytics"
 import type { MapPaneRef } from "./MapPane.client"
 import { randomPointInRadius } from "@/lib/geo"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -114,8 +114,9 @@ export function LeftSlider({
       })
     }
 
-    // Generate a random point within the accuracy circle
-    const targetPoint = randomPointInRadius([userLoc.lng, userLoc.lat], userLoc.accuracy)
+    // Generate a random point within the accuracy circle (capped at 500m for realism)
+    const cappedAccuracy = Math.min(userLoc.accuracy, 500)
+    const targetPoint = randomPointInRadius([userLoc.lng, userLoc.lat], cappedAccuracy)
     
     // Determine label based on detection result
     const label = result.isDrone ? "Drone Detection" : "Audio Detection"
@@ -224,13 +225,16 @@ export function LeftSlider({
               )}
             </CardContent>
           </Card>
+          
           <Separator className="bg-border flex-shrink-0 my-0.5" />
 
-          {/* Threat Level */}
-          <ThreatLevel 
-            detections={detections.length}
-            recentDroneDetections={recentDroneDetections}
-          />
+          {/* Operator Analytics */}
+          <div className="flex flex-col gap-1.5 sm:gap-2 overflow-y-auto">
+            <OperatorAnalytics 
+              detections={detections.length}
+              recentDroneDetections={recentDroneDetections}
+            />
+          </div>
 
         </div>
       </div>
