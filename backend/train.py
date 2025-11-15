@@ -39,19 +39,28 @@ class DroneAudioDataset(Dataset):
     def __init__(self, data_dir, metadata_file, split="train", transform=None):
         super().__init__()
         self.data_dir = Path(data_dir)
-        self.metadata = pd.read_csv(metadata_file)
+        full_metadata = pd.read_csv(metadata_file)
         self.split = split
         self.transform = transform
 
-        if split == 'train':
-            self.metadata = self.metadata[self.metadata['fold'] != 5]
-        else:
-            self.metadata = self.metadata[self.metadata['fold'] == 5]
-
-        self.classes = sorted(self.metadata['category'].unique())
+        # CRITICAL FIX: Compute classes from FULL dataset before splitting
+        # This ensures train and test use the same class indices
+        self.classes = sorted(full_metadata['category'].unique())
         self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
-        self.metadata['label'] = self.metadata['category'].map(
-            self.class_to_idx)
+        
+        # Now filter by split
+        if split == 'train':
+            self.metadata = full_metadata[full_metadata['fold'] != 5].copy()
+        else:
+            self.metadata = full_metadata[full_metadata['fold'] == 5].copy()
+
+        # Map categories to consistent label indices
+        self.metadata['label'] = self.metadata['category'].map(self.class_to_idx)
+        
+        # Validate: Check for NaN labels (unmapped categories)
+        if self.metadata['label'].isna().any():
+            invalid_cats = self.metadata[self.metadata['label'].isna()]['category'].unique()
+            raise ValueError(f"Found unmapped categories in {split} set: {invalid_cats}")
 
     def __len__(self):
         return len(self.metadata)
@@ -59,6 +68,14 @@ class DroneAudioDataset(Dataset):
     def __getitem__(self, idx):
         row = self.metadata.iloc[idx]
         audio_path = self.data_dir / "audio" / row['filename']
+        
+        # Get and validate label
+        label = int(row['label'])
+        if label < 0 or label >= len(self.classes):
+            raise ValueError(
+                f"Invalid label {label} for class '{row['category']}'. "
+                f"Expected range [0, {len(self.classes)-1}]"
+            )
 
         waveform, sample_rate = torchaudio.load(audio_path, backend="soundfile")
 
@@ -92,7 +109,7 @@ class DroneAudioDataset(Dataset):
         # Normalize to reasonable range
         spectrogram = torch.clamp(spectrogram, min=-80.0, max=0.0)
 
-        return spectrogram, row['label']
+        return spectrogram, label
 
 
 def mixup_data(x, y):
@@ -153,6 +170,14 @@ def train():
 
     print(f"Training samples: {len(train_dataset)}")
     print(f"Val samples: {len(val_dataset)}")
+    print(f"Number of classes: {len(train_dataset.classes)}")
+    print(f"Classes: {train_dataset.classes}")
+    
+    # Validate labels are in valid range
+    train_labels = train_dataset.metadata['label'].values
+    val_labels = val_dataset.metadata['label'].values
+    print(f"Train labels range: [{train_labels.min():.0f}, {train_labels.max():.0f}]")
+    print(f"Val labels range: [{val_labels.min():.0f}, {val_labels.max():.0f}]")
 
     # Dynamic batch size: use 16 or smaller if dataset is tiny
     batch_size = min(16, max(4, len(train_dataset) // 4))  # At least 4 batches, min 4
