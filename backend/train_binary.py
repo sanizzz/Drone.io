@@ -79,6 +79,12 @@ class BinaryAudioDataset(Dataset):
         else:
             spectrogram = waveform
 
+        # Fix NaN and inf values that can occur from AmplitudeToDB
+        spectrogram = torch.nan_to_num(spectrogram, nan=0.0, posinf=0.0, neginf=-80.0)
+        
+        # Normalize to reasonable range
+        spectrogram = torch.clamp(spectrogram, min=-80.0, max=0.0)
+
         return spectrogram, row['label']
 
 
