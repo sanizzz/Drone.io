@@ -69,7 +69,7 @@ class BinaryAudioDataset(Dataset):
         row = self.metadata.iloc[idx]
         audio_path = self.data_dir / row['filename']
 
-        waveform, sample_rate = torchaudio.load(audio_path)
+        waveform, sample_rate = torchaudio.load(audio_path, backend="soundfile")
 
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
