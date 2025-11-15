@@ -13,6 +13,52 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  // Parse and validate coordinates
+  const [originLng, originLat] = origin.split(",").map(Number)
+  const [targetLng, targetLat] = target.split(",").map(Number)
+
+  if (isNaN(originLng) || isNaN(originLat) || isNaN(targetLng) || isNaN(targetLat)) {
+    return NextResponse.json(
+      { error: "Invalid coordinate format" },
+      { status: 400 }
+    )
+  }
+
+  // Validate coordinate ranges
+  if (Math.abs(originLat) > 90 || Math.abs(targetLat) > 90) {
+    return NextResponse.json(
+      { error: "Latitude must be between -90 and 90" },
+      { status: 400 }
+    )
+  }
+
+  if (Math.abs(originLng) > 180 || Math.abs(targetLng) > 180) {
+    return NextResponse.json(
+      { error: "Longitude must be between -180 and 180" },
+      { status: 400 }
+    )
+  }
+
+  // Calculate straight-line distance to check if route is reasonable
+  const R = 6371 // Earth radius in km
+  const dLat = (targetLat - originLat) * Math.PI / 180
+  const dLon = (targetLng - originLng) * Math.PI / 180
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(originLat * Math.PI / 180) * Math.cos(targetLat * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  const distanceKm = R * c
+
+  // Reject requests for routes over 100km (unreasonable for drone detection)
+  if (distanceKm > 100) {
+    console.warn(`Route too long: ${distanceKm.toFixed(2)}km from (${originLng},${originLat}) to (${targetLng},${targetLat})`)
+    return NextResponse.json(
+      { error: `Route distance (${distanceKm.toFixed(1)}km) exceeds maximum allowed (100km). This may indicate GPS accuracy issues.` },
+      { status: 400 }
+    )
+  }
+
   const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN
 
   if (!mapboxToken) {

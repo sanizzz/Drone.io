@@ -209,11 +209,12 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
     mapboxgl.accessToken = mapboxToken
 
     // Initialize map with performance-optimized options
+    console.log("🗺️ Initializing map with fallback center (will update to your actual location)...")
     mapRef.current = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/standard",
-      center: [-80.5425, 43.4695], // Fallback center
-      zoom: 14,
+      center: [0, 0], // Neutral fallback - will be replaced by actual location
+      zoom: 2,
       pitch: isPerformanceMode ? 0 : 65,
       bearing: isPerformanceMode ? 0 : -20,
       projection: isPerformanceMode ? "mercator" : ("globe" as any),
@@ -222,9 +223,7 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       // Performance optimizations
       fadeDuration: 100, // Faster tile transitions
       renderWorldCopies: false, // Don't render duplicate world copies
-      optimizeForTerrain: false, // Disable terrain optimization for speed
       maxTileCacheSize: 50, // Reduce tile cache for memory efficiency
-      localIdeographFontFamily: false, // Use web fonts only
       preserveDrawingBuffer: false, // Better performance
       refreshExpiredTiles: false, // Don't auto-refresh old tiles
       trackResize: true, // Auto-handle container resize
@@ -451,25 +450,57 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
       const lat = e.coords.latitude
       const accuracy = e.coords.accuracy || 50
       
-      setUserLocation({ lng, lat, accuracy })
-      
-      // Update custom radar marker
-      updateUserMarker(lng, lat, accuracy)
-      
-      console.log("User location updated:", {
-        lng,
-        lat,
+      console.log("✅ Location acquired! Your actual coordinates:", {
+        lng: lng.toFixed(6),
+        lat: lat.toFixed(6),
         accuracy: `${accuracy.toFixed(2)}m`,
         heading: e.coords.heading,
         speed: e.coords.speed,
         altitude: e.coords.altitude,
       })
+      
+      setUserLocation({ lng, lat, accuracy })
+      
+      // Update custom radar marker
+      updateUserMarker(lng, lat, accuracy)
+      
+      // Fly to user's actual location
+      if (mapRef.current) {
+        mapRef.current.flyTo({
+          center: [lng, lat],
+          zoom: 14,
+          duration: 2000
+        })
+      }
+    })
+    
+    geolocateControlRef.current.on("trackuserlocationstart", () => {
+      console.log("📍 Started tracking your location...")
+    })
+    
+    geolocateControlRef.current.on("trackuserlocationend", () => {
+      console.log("⏸️ Stopped tracking location")
     })
 
     geolocateControlRef.current.on("error", (e: any) => {
       setLocationStatus("denied")
-      console.warn("Geolocation error:", e)
-      console.warn("Make sure location permissions are enabled and you're using HTTPS")
+      console.error("❌ Geolocation error:", e)
+      console.error("Error code:", e.code)
+      console.error("Error message:", e.message)
+      
+      if (e.code === 1) {
+        console.error("🚫 User denied location permission - Click the location button or allow in browser settings")
+      } else if (e.code === 2) {
+        console.error("📍 Position unavailable - Check GPS/location services")
+      } else if (e.code === 3) {
+        console.error("⏱️ Timeout - Location request took too long")
+      }
+      
+      console.warn("💡 Solutions:")
+      console.warn("1. Click the location icon (crosshair) in the top-right corner of the map")
+      console.warn("2. Make sure location permissions are enabled in your browser")
+      console.warn("3. If using Chrome, check chrome://settings/content/location")
+      console.warn("4. Ensure you're using HTTPS or localhost")
     })
 
     // Listen to zoom and move events to update ring sizes
@@ -531,12 +562,29 @@ export const MapPane = forwardRef<MapPaneRef, {}>((props, ref) => {
 
       // Wait for map to be fully idle before triggering geolocation
       mapRef.current.once("idle", () => {
-        // Use shorter delay for faster response
+        console.log("🎯 Map loaded - requesting your location...")
+        console.log("💡 Please allow location access when prompted by your browser")
+        
+        // Immediate trigger
+        if (geolocateControlRef.current) {
+          geolocateControlRef.current.trigger()
+        }
+        
+        // Retry after 1 second if location not granted
         setTimeout(() => {
-          if (geolocateControlRef.current) {
+          if (!userLocation && geolocateControlRef.current) {
+            console.log("🔄 Retrying location request...")
             geolocateControlRef.current.trigger()
           }
-        }, 200)
+        }, 1000)
+        
+        // Final retry after 3 seconds
+        setTimeout(() => {
+          if (!userLocation && geolocateControlRef.current) {
+            console.log("🔄 Final location request attempt...")
+            geolocateControlRef.current.trigger()
+          }
+        }, 3000)
       })
     })
 
