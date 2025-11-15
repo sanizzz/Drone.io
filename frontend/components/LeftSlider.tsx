@@ -14,7 +14,7 @@ import { Activity, TrendingUp, Radio, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
-import { drones } from "@/data/drones"
+import { drones } from "@/common/drones"
 
 interface PredictionLog {
   id: string
