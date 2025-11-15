@@ -62,9 +62,25 @@ class DroneAudioDataset(Dataset):
 
         waveform, sample_rate = torchaudio.load(audio_path, backend="soundfile")
 
+        # Convert to mono if stereo
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
 
+        # Fixed-length audio preprocessing for consistent batch shapes
+        # 5 seconds at 22050 Hz = 110,250 samples (industry standard)
+        target_length = 110250
+        current_length = waveform.shape[1]
+        
+        if current_length > target_length:
+            # Crop: Take center portion to preserve main content
+            start_idx = (current_length - target_length) // 2
+            waveform = waveform[:, start_idx:start_idx + target_length]
+        elif current_length < target_length:
+            # Pad: Add zeros to end (standard practice in audio ML)
+            pad_length = target_length - current_length
+            waveform = torch.nn.functional.pad(waveform, (0, pad_length), mode='constant', value=0)
+
+        # Apply mel-spectrogram transform + augmentation
         if self.transform:
             spectrogram = self.transform(waveform)
         else:
