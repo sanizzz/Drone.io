@@ -1,23 +1,23 @@
 # Core ML/Audio Libraries
-torch
-torchaudio
-numpy
-pandas
+torch>=2.0.0
+torchaudio>=2.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
 
 # Modal (for serverless deployment)
-modal
+modal>=0.57.0
 
 # FastAPI & API utilities
-fastapi
-pydantic
-python-multipart
+fastapi>=0.104.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
 
 # Audio processing
-librosa
-soundfile
+librosa>=0.10.0
+soundfile>=0.12.0
 
 # Utilities
-requests
-tqdm
-tensorboard
-
+requests>=2.31.0
+tqdm>=4.65.0
+tensorboard>=2.15.0
