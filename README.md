@@ -107,6 +107,35 @@ curl -X POST https://your-modal-url.modal.run \
     {"class": "drone_B", "confidence": 0.06},
     {"class": "drone_C", "confidence": 0.03}
   ],
+
+Audio-Convolutional-Neural-Network-Classifier/
+├── backend/
+│   ├── model.py                    # CNN architecture (ResNet blocks)
+│   ├── main.py                     # Modal deployment + FastAPI endpoints
+│   ├── train.py                    # Multi-class training script
+│   ├── train_binary.py             # Binary classifier training
+│   ├── bpf_distance.py            # Distance estimation algorithm
+│   ├── test_model.py              # Model evaluation
+│   ├── prepare_binary_dataset.py  # Data preprocessing
+│   └── requirements.txt           # Python dependencies
+├── frontend/
+│   ├── app/
+│   │   ├── page.tsx               # Main dashboard page
+│   │   ├── layout.tsx             # Root layout
+│   │   └── api/                   # API routes
+│   ├── components/
+│   │   ├── AudioUpload.tsx        # Audio file upload component
+│   │   ├── interactive-map.tsx    # Map with detection markers
+│   │   ├── RadarCard.tsx          # Detection list display
+│   │   ├── PredictionLogs.tsx     # Log viewer
+│   │   ├── OperatorAnalytics.tsx  # Analytics dashboard
+│   │   └── ui/                    # Shadcn UI components
+│   ├── lib/
+│   │   └── geo.ts                 # Geospatial calculations
+│   ├── package.json
+│   └── tsconfig.json
+├── netlify.toml                    # Netlify deployment config
+└── README.md
   "distance_m": 150.5,
   "ci": [120.4, 180.6],
   "confidence_distance": 0.85,
