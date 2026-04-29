@@ -1,6 +1,9 @@
 # 🚁 Audio-Based Drone Detection & Classification System
 
+
 An intelligent audio classification system that uses deep learning to detect and identify drones from their acoustic signatures. The system employs a two-stage CNN architecture and physics-based distance estimation to provide real-time drone detection, classification, and localization capabilities.
+
+<img width="1908" height="913" alt="image" src="https://github.com/user-attachments/assets/e1be0a91-9f38-4799-a454-49faaede5157" />
 
 ## 🎯 Features
 
